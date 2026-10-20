@@ -5,6 +5,7 @@
 source("R/check_packages.R")
 source("R/distributions.R")
 source("R/report.R")
+source("R/validate.R")
 
 dir.create("outputs", showWarnings = FALSE)
 dir.create("docs/figures", showWarnings = FALSE, recursive = TRUE)

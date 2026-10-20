@@ -10,10 +10,12 @@ report_add <- function(...) {
 
 md_table <- function(df) {
   fmt <- function(x) {
-    if (is.numeric(x))
+    out <- if (is.numeric(x))
       format(x, big.mark = ",", trim = TRUE) else as.character(x)
+    out[is.na(x)] <- "–" # not "NA" in the report
+    out
   }
-  
+
   cells <- vapply(df, fmt, character(nrow(df)))
   if (is.null(dim(cells))) cells <- matrix(cells, nrow = 1)
   c(paste0("| ", paste(names(df), collapse = " | "), " |"),

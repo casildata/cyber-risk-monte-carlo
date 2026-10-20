@@ -5,7 +5,7 @@ hypothetical mid-size company** (`data/assumptions/*.csv`), not benchmarks.
 
 ## 1. Input analysis
 
-**Frequency (48 months of incident counts).** Variance/mean = 1.16 (a Poisson process gives about 1). AIC prefers the Poisson model, and the chi-square test rejects neither: with only 48 months of data the extra negative-binomial parameter isn't justified yet. Re-test as history accumulates.
+**Frequency (48 months of incident counts).** Variance/mean = 1.16 (a Poisson process gives about 1). AIC prefers the Poisson model, and the chi-square test rejects neither: with only 48 months of data the extra negative-binomial parameter isn't justified yet. Re-test as history accumulates. The synthetic history was in fact drawn from a negative binomial (true variance/mean = 1.48), so this is a miss, not a confirmation: 48 months of counts can't reveal moderate overdispersion, and a Poisson model built on them would understate how clustered incidents are.
 
 | model | AIC | chisq_p_value |
 |---|---|---|
@@ -46,17 +46,30 @@ Probability that total annual loss exceeds a threshold:
 
 The mean (annualized loss expectancy) sits far above the median: in most years losses are modest, and rare ransomware or data-breach years drive the tail.
 
+**Monte Carlo error.** The table above is exact for this seed, not to the dollar. Bootstrap standard errors over the 20,000 simulated years (200 resamples) show how far another seed could move each figure. They measure simulation noise only, not uncertainty in the assumptions:
+
+| Scenario | Mean (ALE) | P95 (1-in-20) | P99 (1-in-100) |
+|---|---|---|---|
+| Ransomware | $338k ± $8.0k | $2.15M ± $45k | $5.25M ± $170k |
+| Business email compromise | $239k ± $2.4k | $827k ± $12k | $1.52M ± $40k |
+| Customer data breach | $381k ± $7.3k | $2.00M ± $37k | $4.66M ± $150k |
+| DDoS outage | $132k ± $1.0k | $401k ± $4.1k | $645k ± $15k |
+| Insider misuse | $114k ± $2.2k | $592k ± $13k | $1.50M ± $44k |
+| Total | $1.20M ± $11k | $4.03M ± $60k | $7.58M ± $160k |
+
 ![Loss exceedance curve](figures/loss_exceedance_curve.png)
 
 ## 3. Control ROI
 
-| Control | Scenario | Annual cost | ALE before | ALE after | Loss avoided / yr (95% CI) | ROSI | Years it pays back |
+| Control | Scenario | Annual cost | ALE before | ALE after | Loss avoided / yr (Monte Carlo 95% CI) | ROSI | Years it pays back |
 |---|---|---|---|---|---|---|---|
 | EDR + immutable backups | Ransomware | $150,000 | $337,719 | $84,615 | $253,103 ($240,843 – $264,577) | +69% | 17% |
 | Phishing-resistant MFA + payment call-back | Business email compromise | $60,000 | $239,333 | $68,691 | $170,642 ($167,063 – $174,294) | +184% | 56% |
 | DLP + database encryption | Customer data breach | $120,000 | $380,614 | $176,085 | $204,529 ($195,941 – $212,447) | +70% | 27% |
 
-*Years it pays back* is the share of simulated years in which the loss avoided that year exceeds the control's cost. A control can have a strongly positive expected ROSI and still "lose money" in most individual years, because its value comes from the rare bad year. The CI is a bootstrap interval for the mean.
+*Years it pays back* is the share of simulated years in which the loss avoided that year exceeds the control's cost. A control can have a strongly positive expected ROSI and still "lose money" in most individual years, because its value comes from the rare bad year.
+
+The interval is a bootstrap over simulated years, so it measures Monte Carlo noise in the mean: how much another seed would move it. It is not uncertainty about how well the control works. Effectiveness is redrawn from its triangular range every simulated year, so that uncertainty is averaged into the mean, not reflected in the interval's width.
 
 ![Loss avoided](figures/control_loss_avoided.png)
 
@@ -66,11 +79,21 @@ The mean (annualized loss expectancy) sits far above the median: in most years l
 
 | method | mean | q025 | median | q975 | draws_kept |
 |---|---|---|---|---|---|
-| Exact Gamma(9, 10.01) | 0.899 | 0.411 | 0.866 | 1.575 | NA |
+| Exact Gamma(9, 10.01) | 0.899 | 0.411 | 0.866 | 1.575 | – |
 | Corrected MH (log random walk) | 0.899 | 0.407 | 0.864 | 1.602 | 19,000 |
 | Original coursework MH | 0.934 | 0.390 | 0.906 | 1.678 | 6,785 |
 
 Corrected sampler: acceptance rate 54%, effective sample size ≈ 4,133 of 19,000 post-burn-in draws. The original version keeps only accepted proposals and uses an uncorrected asymmetric proposal; compare its row with the exact answer.
 
 ![MCMC](figures/mcmc_posterior.png)
+
+**Which bug does what.** Each variant run as 10 chains of 20,000 iterations, first 1,000 dropped; exact posterior mean 0.899.
+
+| Sampler | Posterior mean | Chain-to-chain sd | Bias vs. exact |
+|---|---|---|---|
+| Corrected: log random walk, every iteration | 0.902 | 0.003 | +0.003 |
+| Bug 1 only: log random walk, accepted proposals only | 0.893 | 0.002 | -0.006 |
+| Bug 2 only: truncated proposal, no Hastings correction, every iteration | 0.928 | 0.005 | +0.029 |
+| Truncated proposal with Hastings correction, every iteration | 0.900 | 0.005 | +0.000 |
+| Both bugs (original coursework sampler) | 0.931 | 0.005 | +0.032 |
 

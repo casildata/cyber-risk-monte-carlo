@@ -21,3 +21,14 @@ lognormal_from_ci <- function(p05, p95) {
 dollars <- function(x, digits = 0) {
   paste0("$", formatC(x, format = "f", big.mark = ",", digits = digits))
 }
+
+# Dollars to `sig` significant figures with a k/M suffix ($1.20M, $338k), for
+# figures that the Monte Carlo error doesn't support to the dollar.
+dollars_sig <- function(x, sig = 3) {
+  vapply(x, function(v) {
+    unit <- if (abs(v) >= 1e6) c(1e6, "M") else if (abs(v) >= 1e3) c(1e3, "k") else c(1, "")
+    scaled <- signif(v, sig) / as.numeric(unit[1])
+    decimals <- max(0, sig - 1 - floor(log10(max(abs(scaled), 1e-12))))
+    paste0("$", formatC(scaled, format = "f", digits = decimals), unit[2])
+  }, character(1))
+}

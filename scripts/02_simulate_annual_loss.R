@@ -12,6 +12,7 @@ N_YEARS <- 20000
 set.seed(1234)
 
 scenarios <- read.csv("data/assumptions/scenarios.csv")
+validate_inputs(scenarios)
 
 events <- do.call(rbind, lapply(seq_len(nrow(scenarios)), function(i) {
   s <- scenarios[i, ]
@@ -22,6 +23,9 @@ events <- do.call(rbind, lapply(seq_len(nrow(scenarios)), function(i) {
              year = rep(seq_len(N_YEARS), counts),
              loss = rlnorm(sum(counts), par$meanlog, par$sdlog))
 }))
+# Years with no events have no rows, so the number of simulated years travels with
+# the events instead of being inferred from max(year) in script 03
+attr(events, "n_years") <- N_YEARS
 saveRDS(events, "outputs/events.rds")
 
 annual_by_scenario <- function(ev) {
@@ -79,10 +83,42 @@ fmt_tbl$p_any_loss <- sprintf("%.0f%%", 100 * fmt_tbl$p_any_loss)
 names(fmt_tbl) <- c("Scenario", "Mean (ALE)", "Median", "P90", "P95 (1-in-20)",
                     "P99 (1-in-100)", "P(any loss)")
 
+# ---- Monte Carlo error ------------------------------------------------------------
+# The figures above are exact for seed 1234; another seed would move them. Bootstrap
+# the simulated years to estimate by how much. Runs last so it changes nothing above.
+MC_B <- 200
+set.seed(5678)
+mc_se <- function(v) {
+  boots <- replicate(MC_B, {
+    s <- sample(v, replace = TRUE)
+    c(mean(s), quantile(s, c(0.95, 0.99), names = FALSE))
+  })
+  apply(boots, 1, sd)
+}
+se_tbl <- as.data.frame(t(sapply(c(as.data.frame(annual), list(Total = total)), mc_se)))
+names(se_tbl) <- c("se_mean", "se_p95", "se_p99")
+se_tbl <- cbind(scenario = rownames(se_tbl), se_tbl, row.names = NULL)
+write.csv(se_tbl, "outputs/annual_loss_mc_error.csv", row.names = FALSE)
+
+pm <- function(est, se) paste0(dollars_sig(est), " ± ", dollars_sig(se, 2))
+se_fmt <- data.frame(
+  Scenario = summary_tbl$scenario,
+  `Mean (ALE)` = pm(summary_tbl$mean, se_tbl$se_mean),
+  `P95 (1-in-20)` = pm(summary_tbl$p95, se_tbl$se_p95),
+  `P99 (1-in-100)` = pm(summary_tbl$p99, se_tbl$se_p99),
+  check.names = FALSE
+)
+
 report_add("## 2. Annual loss distribution\n\n",
            paste(md_table(fmt_tbl), collapse = "\n"), "\n\n",
            "Probability that total annual loss exceeds a threshold:\n\n",
            paste(md_table(exceed), collapse = "\n"), "\n\n",
            "The mean (annualized loss expectancy) sits far above the median: in most years ",
            "losses are modest, and rare ransomware or data-breach years drive the tail.\n\n",
+           "**Monte Carlo error.** The table above is exact for this seed, not to the dollar. ",
+           "Bootstrap standard errors over the ", format(N_YEARS, big.mark = ","),
+           " simulated years (", MC_B, " resamples) show how far another seed could move ",
+           "each figure. They measure simulation noise only, not uncertainty in the ",
+           "assumptions:\n\n",
+           paste(md_table(se_fmt), collapse = "\n"), "\n\n",
            "![Loss exceedance curve](figures/loss_exceedance_curve.png)\n")

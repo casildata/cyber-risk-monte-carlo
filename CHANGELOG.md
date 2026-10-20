@@ -16,7 +16,14 @@ homework scenarios were course-provided and are not included; the techniques car
 **Improvements**
 - Strengthened the Metropolis-Hastings sampler: records the chain state every iteration and uses a symmetric log-scale proposal with the Jacobian (posterior mean now matches the exact 0.899).
 - Burn-in applied consistently to every summary.
-- Repository-relative paths; dependencies reduced to base R, MASS and ggplot2.
+- Bug-isolation table: each coursework sampler bug run on its own over 10 chains. The missing Hastings correction causes almost all of the bias (+0.029); storing only accepted proposals adds −0.006.
+- Bootstrap Monte Carlo standard errors for the mean, P95 and P99 of every scenario; README figures rounded to match.
+- The control interval is labeled as a Monte Carlo CI, with an explanation that it is not uncertainty about control effectiveness.
+- Input validation for `scenarios.csv` and `controls.csv`.
+- Script 03 reads the number of simulated years from the saved events instead of `max(year)`, which undercounted when the last simulated years had no events.
+- Input analysis notes that the Poisson verdict is a miss: the synthetic history was drawn from a negative binomial.
+- Framework mapping (FAIR, NIST CSF 2.0, MITRE ATT&CK, CIS Controls v8.1) in the README.
+- Repository-relative paths; dependencies reduced to base R, MASS, ggplot2, scales and patchwork.
 - Added `run_all.R`, a generated results report and figures.
 
 **Not included**

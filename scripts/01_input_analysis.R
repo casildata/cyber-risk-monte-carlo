@@ -9,8 +9,12 @@ set.seed(2022)
 dir.create("data/generated", showWarnings = FALSE, recursive = TRUE)
 
 # ---- Synthetic history ------------------------------------------------------
+# Generated from a negative binomial on purpose: the test below should prefer it,
+# but 48 months is too little history to tell.
+NB_MU <- 1.2
+NB_SIZE <- 2.5
 monthly <- data.frame(month = seq(as.Date("2018-01-01"), by = "month", length.out = 48),
-                      incidents = rnbinom(48, mu = 1.2, size = 2.5))
+                      incidents = rnbinom(48, mu = NB_MU, size = NB_SIZE))
 bec <- read.csv("data/assumptions/scenarios.csv")
 bec <- bec[bec$scenario == "Business email compromise", ]
 bec_par <- lognormal_from_ci(bec$loss_p05, bec$loss_p95)
@@ -93,7 +97,12 @@ freq_note <- paste0(
   if (both_fit) paste0(", and the chi-square test rejects neither: with only ",
                        length(x), " months of data the extra negative-binomial parameter ",
                        "isn't justified yet. Re-test as history accumulates.")
-  else ".")
+  else ".",
+  if (preferred == "Poisson") paste0(
+    " The synthetic history was in fact drawn from a negative binomial (true variance/mean = ",
+    sprintf("%.2f", 1 + NB_MU / NB_SIZE), "), so this is a miss, not a confirmation: ",
+    length(x), " months of counts can't reveal moderate overdispersion, and a Poisson model ",
+    "built on them would understate how clustered incidents are."))
 
 report_add("## 1. Input analysis\n\n",
            "**Frequency (48 months of incident counts).** ", freq_note, "\n\n",

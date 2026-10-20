@@ -11,7 +11,8 @@ library(ggplot2)
 set.seed(99)
 events   <- readRDS("outputs/events.rds")
 controls <- read.csv("data/assumptions/controls.csv")
-n_years  <- max(events$year)
+validate_inputs(read.csv("data/assumptions/scenarios.csv"), controls)
+n_years  <- attr(events, "n_years")
 
 bootstrap_mean_ci <- function(v, B = 2000) {
   means <- replicate(B, mean(sample(v, replace = TRUE)))
@@ -72,7 +73,7 @@ tbl <- data.frame(
   `Annual cost` = dollars(roi$annual_cost),
   `ALE before` = dollars(roi$ale_before),
   `ALE after` = dollars(roi$ale_after),
-  `Loss avoided / yr (95% CI)` = paste0(dollars(roi$avoided_mean), " (",
+  `Loss avoided / yr (Monte Carlo 95% CI)` = paste0(dollars(roi$avoided_mean), " (",
                                         dollars(roi$avoided_ci_low), " – ",
                                         dollars(roi$avoided_ci_high), ")"),
   ROSI = sprintf("%+.0f%%", 100 * roi$rosi),
@@ -84,5 +85,10 @@ report_add("## 3. Control ROI\n\n",
            "*Years it pays back* is the share of simulated years in which the loss avoided ",
            "that year exceeds the control's cost. A control can have a strongly positive ",
            "expected ROSI and still \"lose money\" in most individual years, because its ",
-           "value comes from the rare bad year. The CI is a bootstrap interval for the mean.\n\n",
+           "value comes from the rare bad year.\n\n",
+           "The interval is a bootstrap over simulated years, so it measures Monte Carlo ",
+           "noise in the mean: how much another seed would move it. It is not uncertainty ",
+           "about how well the control works. Effectiveness is redrawn from its triangular ",
+           "range every simulated year, so that uncertainty is averaged into the mean, not ",
+           "reflected in the interval's width.\n\n",
            "![Loss avoided](figures/control_loss_avoided.png)\n")
