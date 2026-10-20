@@ -2,7 +2,7 @@
 
 **FAIR-style annual loss modeling in R: turn analyst estimates into a loss exceedance curve, price security controls by return on investment, and update incident rates with Bayesian MCMC.**
 
-![R](https://img.shields.io/badge/R-4.x-276DC3?logo=r&logoColor=white)
+![R](https://img.shields.io/badge/R-4.1%2B-276DC3?logo=r&logoColor=white)
 ![Method](https://img.shields.io/badge/method-Monte%20Carlo%20%7C%20bootstrap%20%7C%20MCMC-informational)
 ![Domain](https://img.shields.io/badge/domain-Cyber%20Risk%20Quantification-critical)
 ![License](https://img.shields.io/badge/license-MIT-green)
@@ -92,7 +92,7 @@ The coursework sampler had two bugs: it stored only *accepted* proposals, which 
 
 ### Requirements
 
-- R 4.x with `ggplot2`, `scales` and `patchwork` (`MASS` ships with R).
+- R 4.1 or later (tested on 4.6.1) with `ggplot2`, `scales` and `patchwork` (`MASS` ships with R).
 - No external data: the inputs are in `data/assumptions/`.
 
 ### Install
