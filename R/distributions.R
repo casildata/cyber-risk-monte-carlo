@@ -10,6 +10,13 @@ rtriangle <- function(n, a, c, b) {
          b - sqrt((1 - u) * (b - a) * (b - c)))
 }
 
+# Beta-PERT (min a, mode c, max b), the usual FAIR choice: same three inputs as the
+# triangular, but less weight near the extremes. Mean (a + 4c + b) / 6.
+rpert <- function(n, a, c, b, shape = 4) {
+  stopifnot(a <= c, c <= b, a < b)
+  a + (b - a) * rbeta(n, 1 + shape * (c - a) / (b - a), 1 + shape * (b - c) / (b - a))
+}
+
 # Lognormal parameters from a calibrated 90% interval (5th and 95th percentiles)
 # the usual way analysts express "a single loss is between $X and $Y".
 lognormal_from_ci <- function(p05, p95) {

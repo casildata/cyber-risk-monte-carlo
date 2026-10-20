@@ -23,6 +23,14 @@ homework scenarios were course-provided and are not included; the techniques car
 - Script 03 reads the number of simulated years from the saved events instead of `max(year)`, which undercounted when the last simulated years had no events.
 - Input analysis notes that the Poisson verdict is a miss: the synthetic history was drawn from a negative binomial.
 - Framework mapping (FAIR, NIST CSF 2.0, MITRE ATT&CK, CIS Controls v8.1) in the README.
+- Two-level uncertainty for control ROI: 90% bands and P(ROSI < 0), with the event rate and control effectiveness held fixed per draw. EDR's chance of losing money is 14%, and it comes entirely from the uncertain event rate.
+- Risk tolerance curve (`tolerance.csv`) checked against the loss exceedance curve before and after the controls, on log-probability scales (`05_risk_tolerance.R`).
+- Generated one-page board brief (`docs/board-brief.md`, `06_board_brief.R`).
+- Beta-PERT frequency option and per-event loss cap (`lef_dist`, `loss_cap`), with a sensitivity table.
+- Model logic moved into `R/model.R` and `R/mcmc.R`, with `testthat` unit tests.
+- GitHub Actions: unit tests, full pipeline, a check that every reported number is reproduced, and a gitleaks secret scan; `renv.lock` pins package versions.
+- Year-by-scenario annual losses exported (`annual_loss_by_year.csv.gz`) and attached to the v1.0 release.
+- The loss-avoided figure states how many years with $0 avoided it leaves out.
 - Repository-relative paths; dependencies reduced to base R, MASS, ggplot2, scales and patchwork.
 - Added `run_all.R`, a generated results report and figures.
 

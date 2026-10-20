@@ -1,0 +1,67 @@
+name: pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tests-and-pipeline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: renv # the version recorded in renv.lock
+          use-public-rspm: true # prebuilt Linux binaries
+
+      - name: Install system libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libfontconfig1-dev libharfbuzz-dev libfribidi-dev \
+            libfreetype6-dev libpng-dev libtiff5-dev libjpeg-dev
+
+      - uses: actions/cache@v6
+        with:
+          path: ${{ env.R_LIBS_USER }}
+          key: r-${{ runner.os }}-${{ hashFiles('renv.lock') }}
+
+      - name: Restore R packages from renv.lock
+        shell: Rscript {0}
+        run: |
+          if (!requireNamespace("renv", quietly = TRUE)) install.packages("renv")
+          renv::restore(library = Sys.getenv("R_LIBS_USER"),
+                        repos = getOption("repos"), prompt = FALSE)
+
+      - name: Unit tests
+        run: Rscript -e 'testthat::test_dir("tests/testthat", stop_on_failure = TRUE)'
+
+      - name: Run the pipeline
+        run: Rscript run_all.R
+
+      - name: Compare results with the committed run
+        # every reported number is in these two generated files
+        run: git diff --exit-code docs/results.md docs/board-brief.md
+
+      - uses: actions/upload-artifact@v7
+        if: always() # keep the results for inspection when the comparison fails
+        with:
+          name: results
+          path: |
+            docs/
+            outputs/
+
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # scan the full history
+      - uses: gitleaks/gitleaks-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -5,6 +5,7 @@
 #   loss per event        L_i    ~ Lognormal from the calibrated 90% interval
 # Annual loss = sum of L_i. Events are kept individually so script 03 can apply
 # controls to the same simulated history (common random numbers).
+# The model itself is in R/model.R.
 
 library(ggplot2)
 
@@ -14,28 +15,19 @@ set.seed(1234)
 scenarios <- read.csv("data/assumptions/scenarios.csv")
 validate_inputs(scenarios)
 
-events <- do.call(rbind, lapply(seq_len(nrow(scenarios)), function(i) {
-  s <- scenarios[i, ]
-  lambda <- rtriangle(N_YEARS, s$lef_min, s$lef_mode, s$lef_max)
-  counts <- rpois(N_YEARS, lambda)
-  par <- lognormal_from_ci(s$loss_p05, s$loss_p95)
-  data.frame(scenario = s$scenario,
-             year = rep(seq_len(N_YEARS), counts),
-             loss = rlnorm(sum(counts), par$meanlog, par$sdlog))
-}))
-# Years with no events have no rows, so the number of simulated years travels with
-# the events instead of being inferred from max(year) in script 03
-attr(events, "n_years") <- N_YEARS
+# Years with no events have no rows, so simulate_events() stores the number of
+# simulated years with the events for script 03
+events <- simulate_events(scenarios, N_YEARS)
 saveRDS(events, "outputs/events.rds")
 
-annual_by_scenario <- function(ev) {
-  m <- matrix(0, N_YEARS, nrow(scenarios), dimnames = list(NULL, scenarios$scenario))
-  agg <- aggregate(loss ~ scenario + year, data = ev, FUN = sum)
-  m[cbind(agg$year, match(agg$scenario, scenarios$scenario))] <- agg$loss
-  m
-}
-annual <- annual_by_scenario(events)
+annual <- annual_losses(events, scenarios)
 total <- rowSums(annual)
+
+# Year-by-scenario losses for downstream use (e.g. tail-risk optimization of a
+# control budget): one row per simulated year, whole dollars
+write.csv(data.frame(year = seq_len(N_YEARS), round(annual), Total = round(total),
+                     check.names = FALSE),
+          gzfile("outputs/annual_loss_by_year.csv.gz"), row.names = FALSE)
 
 summarise_losses <- function(v) {
   c(mean = mean(v), median = median(v), p90 = unname(quantile(v, 0.90)),
@@ -122,3 +114,41 @@ report_add("## 2. Annual loss distribution\n\n",
            "assumptions:\n\n",
            paste(md_table(se_fmt), collapse = "\n"), "\n\n",
            "![Loss exceedance curve](figures/loss_exceedance_curve.png)\n")
+
+# ---- Sensitivity: frequency distribution and a loss cap ---------------------------
+# Re-run with the same seed, changing one modeling choice at a time:
+#   - beta-PERT instead of triangular for the event rate (the usual FAIR choice)
+#   - a cap on any single loss. Uncapped, the largest simulated event is far beyond
+#     what a mid-size company could pay; $10M is an illustrative ceiling.
+SENS_CAP <- 10e6
+sens_run <- function(label, lef_dist = "triangular", loss_cap = NA) {
+  set.seed(1234)
+  ev <- simulate_events(scenarios, N_YEARS, lef_dist = lef_dist, loss_cap = loss_cap)
+  tot <- rowSums(annual_losses(ev, scenarios))
+  data.frame(Model = label, ale = mean(tot), p95 = unname(quantile(tot, 0.95)),
+             p99 = unname(quantile(tot, 0.99)), p_over_5m = mean(tot > 5e6),
+             largest_event = max(ev$loss))
+}
+sens <- rbind(
+  sens_run("Base: triangular frequency, uncapped"),
+  sens_run("Beta-PERT frequency", lef_dist = "pert"),
+  sens_run(paste0("Single loss capped at ", dollars_sig(SENS_CAP, 2)), loss_cap = SENS_CAP),
+  sens_run("Beta-PERT and capped", lef_dist = "pert", loss_cap = SENS_CAP)
+)
+write.csv(sens, "outputs/sensitivity.csv", row.names = FALSE)
+sens_fmt <- data.frame(
+  Model = sens$Model,
+  `Total ALE` = dollars_sig(sens$ale),
+  `P95 (1-in-20)` = dollars_sig(sens$p95),
+  `P99 (1-in-100)` = dollars_sig(sens$p99),
+  `P(> $5M)` = sprintf("%.1f%%", 100 * sens$p_over_5m),
+  `Largest single event` = dollars_sig(sens$largest_event),
+  check.names = FALSE
+)
+report_add("### Sensitivity to modeling choices\n\n",
+           "Same seed, one choice changed at a time. Beta-PERT uses the same min / mode / max ",
+           "as the triangular but puts less weight near the extremes, so it lowers the mean ",
+           "event rate whenever the mode sits closer to the minimum, as it does for every ",
+           "scenario here. The cap applies to each single loss, so it cannot move a ",
+           "percentile of annual loss that is already below the cap.\n\n",
+           paste(md_table(sens_fmt), collapse = "\n"), "\n")

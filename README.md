@@ -3,6 +3,7 @@
 **FAIR-style annual loss modeling in R: turn analyst estimates into a loss exceedance curve, price security controls by return on investment, and update incident rates with Bayesian MCMC.**
 
 ![R](https://img.shields.io/badge/R-4.1%2B-276DC3?logo=r&logoColor=white)
+[![pipeline](https://github.com/casildata/cyber-risk-monte-carlo/actions/workflows/pipeline.yml/badge.svg)](https://github.com/casildata/cyber-risk-monte-carlo/actions/workflows/pipeline.yml)
 ![Method](https://img.shields.io/badge/method-Monte%20Carlo%20%7C%20bootstrap%20%7C%20MCMC-informational)
 ![Domain](https://img.shields.io/badge/domain-Cyber%20Risk%20Quantification-critical)
 ![License](https://img.shields.io/badge/license-MIT-green)
@@ -20,11 +21,14 @@ The question a CISO gets from the board: *"How much could we lose to cyber incid
 | **Annualized loss expectancy** (5 scenarios) | **$1.20M** ± $11k mean, $0.68M median: the mean is pulled up by rare, large events |
 | **1-in-20-year loss** (P95) | **$4.03M** ± $60k · 1-in-100-year: $7.58M ± $160k |
 | **P(annual loss > $5M)** | **3.0%** |
-| **Best control by ROSI** | Phishing-resistant MFA + payment call-back: **+184%**, pays back in 56% of years |
-| **Ransomware control** | EDR + immutable backups: **+69%** ROSI, yet pays back in only 17% of years, because its value is the rare bad year |
+| **Risk tolerance** | Outside an illustrative appetite for annual losses of about $1.5M–$8.7M: P(loss > $2.5M) is **12.2%** against 10% tolerated. The three controls bring the curve back inside. |
+| **Best control by ROSI** | Phishing-resistant MFA + payment call-back: **+184%** expected, **1.4%** chance it loses money |
+| **Ransomware control** | EDR + immutable backups: **+69%** expected, but a **14%** chance it loses money, almost entirely because ransomware frequency is uncertain. It pays back in only 17% of years, because its value is the rare bad year. |
 | **Bayesian rate check** | Corrected Metropolis-Hastings matches the exact posterior mean (0.899); the original coursework sampler was biased (0.934), almost entirely from a missing Hastings correction |
 
 ± is one Monte Carlo standard error (bootstrap over simulated years): how far another random seed could move the figure. It says nothing about whether the inputs are right.
+
+**One-page summary for a board or CFO:** [`docs/board-brief.md`](docs/board-brief.md), generated with the rest of the results.
 
 ![Loss exceedance curve](docs/figures/loss_exceedance_curve.png)
 
@@ -41,7 +45,12 @@ flowchart LR
     B --> D["20,000 simulated years<br/>event-level loss table"]
     C --> D
     D --> E["Loss exceedance curve<br/>ALE · P95 · P99 ± MC error"]
-    D --> G["Controls applied to the<br/>SAME events (thinning)<br/>→ ROSI + Monte Carlo CI"]
+    D --> G["Controls applied to the<br/>SAME events (thinning)<br/>→ ROSI"]
+    U["Two-level draws: event rate<br/>and control effect held fixed"] --> R["ROSI 90% band<br/>P(ROSI < 0)"]
+    E --> T["Risk tolerance check<br/>before / after controls"]
+    G --> T
+    T --> BB["Board brief"]
+    R --> BB
     H["Synthetic incident history"] --> F["Input analysis<br/>MLE fits · AIC · KS · χ²"]
     F -.->|checks Poisson choice| B
     F -.->|checks lognormal choice| C
@@ -55,8 +64,12 @@ Solid arrows are the simulation. Dashed arrows are checks: input analysis tests 
 |---|---|---|
 | 1. Input analysis | [`01_input_analysis.R`](scripts/01_input_analysis.R) | Fit Poisson vs. negative binomial to monthly counts (AIC, χ² goodness of fit, dispersion); fit lognormal, gamma, Weibull and exponential to past losses (MLE, AIC, Kolmogorov-Smirnov, Q-Q plot) |
 | 2. Annual loss | [`02_simulate_annual_loss.R`](scripts/02_simulate_annual_loss.R) | Input validation; compound Poisson-lognormal per scenario with uncertain frequency; loss exceedance curve; ALE, P90/P95/P99 with bootstrap Monte Carlo standard errors |
-| 3. Control ROI | [`03_control_roi.R`](scripts/03_control_roi.R) | Controls thin the same simulated events (common random numbers), uncertain frequency/severity reductions, ROSI, Monte Carlo CI for loss avoided |
+| 3. Control ROI | [`03_control_roi.R`](scripts/03_control_roi.R) | Controls thin the same simulated events (common random numbers); expected ROSI; two-level uncertainty for a 90% band and P(ROSI < 0) |
 | 4. Bayesian rate | [`04_bayesian_frequency.R`](scripts/04_bayesian_frequency.R) | Random-walk Metropolis-Hastings on log λ, burn-in, acceptance rate, effective sample size, validated against the exact Gamma posterior; each coursework bug isolated over 10 chains |
+| 5. Risk tolerance | [`05_risk_tolerance.R`](scripts/05_risk_tolerance.R) | Loss exceedance curve vs. a tolerance curve on log-probability scales, before and after the controls |
+| 6. Board brief | [`06_board_brief.R`](scripts/06_board_brief.R) | One-page summary built from the tables above |
+
+The model itself (event simulation, controls, two-level draws) is in [`R/model.R`](R/model.R) and the samplers in [`R/mcmc.R`](R/mcmc.R), both covered by unit tests.
 
 Full tables and all figures: [`docs/results.md`](docs/results.md).
 
@@ -77,17 +90,52 @@ Rounded to three significant figures, which is more than the Monte Carlo error s
 
 Ransomware has a median of $0 yet the highest 1-in-20 loss. Ranking risks by "how often" or by the average alone would hide that.
 
+**Sensitivity.** The same seed, one modeling choice changed at a time:
+
+| Model | Total ALE | P95 (1-in-20) | P99 (1-in-100) | Largest single event |
+|---|---|---|---|---|
+| Base: triangular frequency, uncapped | $1.20M | $4.03M | $7.58M | $31.2M |
+| Beta-PERT frequency | $1.05M | $3.72M | $7.23M | $26.4M |
+| Single loss capped at $10M | $1.19M | $4.03M | $7.58M | $10.0M |
+
+- **Beta-PERT** (the usual FAIR choice) puts less weight near the extremes of the min / mode / max estimate. Every mode here sits below the midpoint of its range, so PERT lowers the expected event rate and the ALE drops 13%. The choice of distribution moves results more than the Monte Carlo error does.
+- **A $10M cap barely matters up to the 1-in-100 year.** Uncapped, one simulated event costs $31.2M, implausible for a mid-size company. But P95 and P99 sit below $10M, so capping single losses there can't move them; it trims the ALE by about 1% and shortens only the extreme tail. A cap near the P95 would matter. Either choice can be set per scenario with the optional `lef_dist` and `loss_cap` columns.
+
 ### Control return on security investment
 
-| Control | Annual cost | Loss avoided / yr (Monte Carlo 95% CI) | ROSI | Years it pays back |
-|---|---|---|---|---|
-| EDR + immutable backups | $150k | $253k ($241k – $265k) | +69% | 17% |
-| Phishing-resistant MFA + payment call-back | $60k | $171k ($167k – $174k) | +184% | 56% |
-| DLP + database encryption | $120k | $205k ($196k – $212k) | +70% | 27% |
+| Control | Annual cost | Loss avoided / yr (90% uncertainty band) | ROSI (90% band) | P(ROSI < 0) | Years it pays back |
+|---|---|---|---|---|---|
+| EDR + immutable backups | $150k | $253k ($115k – $429k) | +69% (−23% to +186%) | 14.0% | 17% |
+| Phishing-resistant MFA + payment call-back | $60k | $171k ($75.8k – $289k) | +184% (+26% to +382%) | 1.4% | 56% |
+| DLP + database encryption | $120k | $205k ($91.0k – $356k) | +70% (−24% to +197%) | 14.1% | 27% |
 
 **Why thinning?** Each control is applied to the *same* simulated events: an event is prevented with probability *r<sub>f</sub>*, which gives exactly a Poisson process at rate λ(1 − *r<sub>f</sub>*). Comparing "with" and "without" on identical draws removes most of the simulation noise from the difference.
 
-**What the interval means.** It is a bootstrap over simulated years, so it measures Monte Carlo noise in the mean: how far another seed would move it. It is **not** uncertainty about how well the control works. Effectiveness is redrawn from its triangular range every simulated year, so that uncertainty is averaged into the mean rather than widening the interval. If EDR's true effect sat at the bottom of its range every year, the loss avoided would be well outside this interval. *Years it pays back* is the better guide to how variable the payoff is.
+**Two kinds of uncertainty.** The simulation redraws the event rate and the control's effectiveness every year, which is right for "what could next year look like?" and gives the expected ROSI. It is wrong for "how sure are we this control pays off?", because what we don't know about a control doesn't change from year to year. So script 03 also runs a two-level analysis: draw the long-run event rate and the control's effectiveness once, hold them fixed, and compute the expected loss avoided in closed form (10,000 draws). That gives the 90% bands and **P(ROSI < 0)**, the chance that the control costs more than it saves on average.
+
+![Expected ROSI under uncertainty, per control](docs/figures/control_rosi_uncertainty.png)
+
+- **MFA is the safe bet:** even at the 5th percentile it returns +26%.
+- **EDR and DLP pay off on average, but each has about a 1-in-7 chance of losing money.**
+- **Not knowing the event rate drives all of that risk.** With the rate fixed at its expected value, no control loses money even at the bottom of its effectiveness range. A better frequency estimate is worth more here than a better effectiveness estimate. Severity is treated as known, so the true bands are wider still.
+
+The Monte Carlo 95% CI for each mean, which measures only simulation noise, is in [`docs/results.md`](docs/results.md).
+
+### Risk tolerance
+
+[`data/assumptions/tolerance.csv`](data/assumptions/tolerance.csv) holds an illustrative risk appetite, the form a board's tolerance statement takes in Hubbard & Seiersen's method: "no more than a 10% chance of losing over $2.5M in a year", and so on. Script 05 checks the loss exceedance curve against it, before and after the three controls:
+
+| Annual loss over | Tolerated | Today | With the three controls |
+|---|---|---|---|
+| $1M | 50% | 36.9% | 15.7% |
+| $2.5M | 10% | **12.2%** | 2.9% |
+| $5M | 2% | **3.0%** | 0.4% |
+| $10M | 0.5% | 0.41% | 0.03% |
+| $20M | 0.1% | 0.03% | 0.00% |
+
+![Loss exceedance vs. risk tolerance, log scales](docs/figures/loss_exceedance_tolerance.png)
+
+Today's curve is above tolerance for annual losses between about $1.5M and $8.7M: the middle of the tail, not the extreme end. With the three controls it is inside everywhere. On log-probability scales the far tail is visibly a staircase: below about 0.05%, each step is one or two simulated years.
 
 ### Validating the MCMC sampler
 
@@ -129,11 +177,11 @@ The model follows the [FAIR](https://www.fairinstitute.org/) structure at its to
 
 | Outcome | How this repo supports it |
 |---|---|
-| **GV.RM-02** Risk appetite and risk tolerance statements are established | The loss exceedance curve is where a tolerance statement ("no more than a 5% chance of losing over $4M in a year") is tested |
+| **GV.RM-02** Risk appetite and risk tolerance statements are established | `tolerance.csv` states the appetite as a curve, and script 05 tests the loss exceedance curve against it before and after controls |
 | **GV.RM-06** A standardized method for calculating and prioritizing cybersecurity risks is established | One method, frequency × magnitude in dollars, is applied to every scenario |
 | **ID.RA-04** Potential impacts and likelihoods of threats are identified and recorded | `scenarios.csv` records a likelihood range and a 90% impact interval per scenario |
 | **ID.RA-05** Threats, vulnerabilities, likelihoods and impacts are used to understand inherent risk and prioritize risk response | ALE and P95 per scenario, before controls |
-| **ID.RA-06** Risk responses are chosen, prioritized, planned, tracked and communicated | ROSI and "years it pays back" for each candidate control |
+| **ID.RA-06** Risk responses are chosen, prioritized, planned, tracked and communicated | ROSI, P(ROSI < 0) and residual risk for each candidate control, summarized in the board brief |
 
 ### Scenarios, ATT&CK and CIS Controls v8.1
 
@@ -151,7 +199,7 @@ Tags are for orientation. They are my mapping, not an official crosswalk. Every 
 
 ### Requirements
 
-- R 4.1 or later (tested on 4.6.1) with `ggplot2`, `scales` and `patchwork` (`MASS` ships with R).
+- R 4.1 or later (tested on 4.6.1) with `ggplot2`, `scales` and `patchwork` (`MASS` ships with R), plus `testthat` for the tests.
 - No external data: the inputs are in `data/assumptions/`.
 
 ### Install
@@ -159,49 +207,70 @@ Tags are for orientation. They are my mapping, not an official crosswalk. Every 
 Missing packages are installed automatically the first time you run the scripts; an interactive R session (RStudio, VS Code) asks first. The list lives in [`r-packages.txt`](r-packages.txt). To install everything up front instead:
 
 ```r
-install.packages(c("ggplot2", "scales", "patchwork"))
+install.packages(c("ggplot2", "scales", "patchwork", "testthat"))
+```
+
+To install the exact package versions this was tested with, from [`renv.lock`](renv.lock):
+
+```r
+install.packages("renv")
+renv::restore()
 ```
 
 ### Run
 
 ```bash
 Rscript run_all.R
+Rscript -e 'testthat::test_dir("tests/testthat")'   # unit tests
 ```
 
-To model your own organization, edit `data/assumptions/scenarios.csv` and `controls.csv`, then re-run.
+To model your own organization, edit `scenarios.csv`, `controls.csv` and `tolerance.csv` in `data/assumptions/`, then re-run. Columns are described in [`data/README.md`](data/README.md).
 
 ### Output
 
-About 15 seconds. Edits to the assumption files are validated first: a typo such as `lef_mode` outside `lef_min`–`lef_max`, a reduction above 100% or a control pointing at a missing scenario stops the run with a message that names the row. The report goes to `docs/results.md` and the figures to `docs/figures/`; intermediate tables go to `outputs/` (git-ignored).
+About 20 seconds. Edits to the assumption files are validated first: a typo such as `lef_mode` outside `lef_min`–`lef_max`, a reduction above 100% or a control pointing at a missing scenario stops the run with a message that names the row. The report goes to `docs/results.md`, the board brief to `docs/board-brief.md` and the figures to `docs/figures/`; intermediate tables go to `outputs/` (git-ignored).
+
+`outputs/annual_loss_by_year.csv.gz` holds the loss for every simulated year and scenario, for downstream use such as optimizing a control budget against the tail rather than the mean. The same file is attached to the [v1.0 release](https://github.com/casildata/cyber-risk-monte-carlo/releases/tag/v1.0).
+
+### Tests and CI
+
+The unit tests check the samplers against their closed forms (triangular and PERT means, simulated ALE vs. the exact compound-Poisson mean, the capped-lognormal mean, the two-level average), the control logic (a control that does nothing avoids nothing; a perfect one avoids everything; trailing years without events are kept), input validation and the MCMC samplers. [GitHub Actions](.github/workflows/pipeline.yml) runs the tests and the full pipeline on every push, fails if any number in `docs/results.md` or `docs/board-brief.md` changes, and scans the history for secrets with gitleaks.
 
 ## Repository structure
 
 ```
 cyber-risk-monte-carlo/
-├── run_all.R                    # runs scripts 01-04, writes docs/results.md
+├── run_all.R                    # runs scripts 01-06, writes docs/results.md
 ├── r-packages.txt               # R packages (installed automatically if missing)
+├── renv.lock                    # exact package versions
 ├── R/
 │   ├── check_packages.R         # installs missing packages from r-packages.txt
-│   ├── distributions.R          # triangular sampler, lognormal-from-interval, dollar formats
+│   ├── distributions.R          # triangular and PERT samplers, lognormal-from-interval, dollar formats
+│   ├── model.R                  # event simulation, controls, two-level draws, exceedance
+│   ├── mcmc.R                   # Metropolis-Hastings samplers
 │   ├── report.R                 # markdown report + figure helpers
-│   └── validate.R               # checks on scenarios.csv and controls.csv
-├── scripts/01_…04_*.R
+│   └── validate.R               # checks on the assumption files
+├── scripts/01_…06_*.R
+├── tests/testthat/              # unit tests
 ├── data/
-│   ├── assumptions/             # scenarios.csv, controls.csv (edit these)
+│   ├── assumptions/             # scenarios.csv, controls.csv, tolerance.csv (edit these)
 │   └── README.md
-└── docs/
-    ├── results.md               # generated
-    └── figures/                 # generated
+├── docs/
+│   ├── results.md               # generated
+│   ├── board-brief.md           # generated
+│   └── figures/                 # generated
+└── .github/workflows/           # tests, results check, secret scan
 ```
 
 ## Skills demonstrated
 
-`Cyber risk quantification (FAIR concepts: loss event frequency, loss magnitude, ALE, loss exceedance)` · `Monte Carlo simulation` · `distribution fitting and goodness-of-fit testing` · `variance reduction with common random numbers` · `bootstrap confidence intervals` · `Bayesian inference with MCMC and sampler validation` · `Monte Carlo error estimation` · `NIST CSF 2.0, MITRE ATT&CK and CIS Controls mapping` · `communicating risk in financial terms`
+`Cyber risk quantification (FAIR concepts: loss event frequency, loss magnitude, ALE, loss exceedance)` · `Monte Carlo simulation` · `distribution fitting and goodness-of-fit testing` · `variance reduction with common random numbers` · `bootstrap confidence intervals` · `two-level (epistemic vs. aleatory) uncertainty` · `risk tolerance curves` · `Bayesian inference with MCMC and sampler validation` · `Monte Carlo error estimation` · `unit testing and CI for analytical code` · `NIST CSF 2.0, MITRE ATT&CK and CIS Controls mapping` · `communicating risk in financial terms`
 
 ## Roadmap
 
 - Replace the illustrative inputs with estimates calibrated against public sources (e.g., industry breach-cost and incident-frequency reports) and cite them.
-- Add a log-scale tail view of the loss exceedance curve and a risk-tolerance curve for comparison.
+- Optimize the control budget against the tail (e.g. CVaR) using the year-by-year losses in the v1.0 release.
+- Add severity uncertainty to the two-level analysis, so the ROSI bands cover all three inputs.
 - Model correlated scenarios (e.g., a breach that follows a ransomware event) with a copula.
 - Feed the MCMC posterior for λ straight into the frequency step instead of the triangular estimate.
 - Shiny front end so a non-technical user can edit assumptions and see the curve update.
@@ -210,6 +279,7 @@ cyber-risk-monte-carlo/
 
 - Freund, J. & Jones, J. (2014). *Measuring and Managing Information Risk: A FAIR Approach.* Butterworth-Heinemann.
 - Hubbard, D. & Seiersen, R. (2016). *How to Measure Anything in Cybersecurity Risk.* Wiley.
+- NIST IR 8286A (2021). *Identifying and Estimating Cybersecurity Risk for Enterprise Risk Management.*
 
 ## Author
 

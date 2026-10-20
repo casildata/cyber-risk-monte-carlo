@@ -20,75 +20,14 @@ set.seed(321)
 SHAPE <- 9
 RATE  <- 10.01
 log_target <- function(lambda) (SHAPE - 1) * log(lambda) - RATE * lambda
-
-# accepted_only = TRUE reproduces bug 1. Each sampler returns the stored draws and
-# the iteration each was stored at, so burn-in is dropped the same way for all.
-mh_log_walk <- function(n_iter, init, step, accepted_only = FALSE) {
-  theta <- log(init)
-  # log density of theta = log(lambda) includes the Jacobian d lambda / d theta = lambda
-  log_p <- function(t) log_target(exp(t)) + t
-  lp_now <- log_p(theta)
-  draws <- iter <- numeric(n_iter)
-  n_kept <- 0
-  accepted <- 0
-  for (i in seq_len(n_iter)) {
-    cand <- theta + rnorm(1, 0, step)
-    lp_cand <- log_p(cand)
-    moved <- log(runif(1)) < lp_cand - lp_now
-    if (moved) {
-      theta <- cand
-      lp_now <- lp_cand
-      accepted <- accepted + 1
-    }
-    if (moved || !accepted_only) {  # correct MH records every iteration
-      n_kept <- n_kept + 1
-      draws[n_kept] <- exp(theta)
-      iter[n_kept] <- i
-    }
-  }
-  list(draws = draws[seq_len(n_kept)], iter = iter[seq_len(n_kept)],
-       acceptance = accepted / n_iter)
-}
-
-# The coursework sampler: a normal proposal truncated below at 0. The defaults
-# reproduce the original (both bugs); hastings = TRUE adds the missing correction
-# q(now | cand) / q(cand | now) = P(N(now, sd) > 0) / P(N(cand, sd) > 0).
-mh_truncated <- function(n_iter, init, cand_sd, accepted_only = TRUE, hastings = FALSE) {
-  rtrunc0 <- function(mean, sd) {  # normal truncated below at 0 (inverse CDF)
-    lo <- pnorm(0, mean, sd)
-    qnorm(runif(1, lo, 1), mean, sd)
-  }
-  g <- function(x) x^8 * exp(-RATE * x)
-  x_now <- init
-  draws <- iter <- numeric(n_iter)
-  n_kept <- 0
-  for (i in seq_len(n_iter)) {
-    x_cand <- rtrunc0(x_now, cand_sd)
-    ratio <- g(x_cand) / g(x_now)
-    if (hastings) ratio <- ratio * pnorm(x_now / cand_sd) / pnorm(x_cand / cand_sd)
-    moved <- runif(1) < ratio
-    if (moved) x_now <- x_cand
-    if (moved || !accepted_only) {
-      n_kept <- n_kept + 1
-      draws[n_kept] <- x_now
-      iter[n_kept] <- i
-    }
-  }
-  list(draws = draws[seq_len(n_kept)], iter = iter[seq_len(n_kept)])
-}
-
-effective_sample_size <- function(x, max_lag = 200) {
-  rho <- acf(x, lag.max = max_lag, plot = FALSE)$acf[-1]
-  cut <- which(rho < 0.05)[1]
-  if (is.na(cut)) cut <- length(rho)
-  length(x) / (1 + 2 * sum(rho[seq_len(cut - 1)]))
-}
+target <- function(lambda) lambda^8 * exp(-RATE * lambda)  # as in the coursework
+# The samplers are in R/mcmc.R.
 
 N_ITER <- 20000
 BURN   <- 1000
-fixed <- mh_log_walk(N_ITER, init = 5, step = 0.6)
+fixed <- mh_log_walk(N_ITER, init = 5, step = 0.6, log_target)
 post  <- fixed$draws[-seq_len(BURN)]
-orig  <- mh_truncated(N_ITER, init = 5, cand_sd = 1.4)$draws
+orig  <- mh_truncated(N_ITER, init = 5, cand_sd = 1.4, target)$draws
 
 exact_q <- qgamma(c(0.025, 0.5, 0.975), SHAPE, RATE)
 compare <- data.frame(
@@ -126,15 +65,15 @@ save_plot(patchwork::wrap_plots(p1, p2, ncol = 2), "mcmc_posterior.png", 10, 4)
 N_CHAINS <- 10
 variants <- list(
   "Corrected: log random walk, every iteration" =
-    function() mh_log_walk(N_ITER, 5, 0.6),
+    function() mh_log_walk(N_ITER, 5, 0.6, log_target),
   "Bug 1 only: log random walk, accepted proposals only" =
-    function() mh_log_walk(N_ITER, 5, 0.6, accepted_only = TRUE),
+    function() mh_log_walk(N_ITER, 5, 0.6, log_target, accepted_only = TRUE),
   "Bug 2 only: truncated proposal, no Hastings correction, every iteration" =
-    function() mh_truncated(N_ITER, 5, 1.4, accepted_only = FALSE),
+    function() mh_truncated(N_ITER, 5, 1.4, target, accepted_only = FALSE),
   "Truncated proposal with Hastings correction, every iteration" =
-    function() mh_truncated(N_ITER, 5, 1.4, accepted_only = FALSE, hastings = TRUE),
+    function() mh_truncated(N_ITER, 5, 1.4, target, accepted_only = FALSE, hastings = TRUE),
   "Both bugs (original coursework sampler)" =
-    function() mh_truncated(N_ITER, 5, 1.4)
+    function() mh_truncated(N_ITER, 5, 1.4, target)
 )
 chain_means <- sapply(variants, function(run) {
   replicate(N_CHAINS, {

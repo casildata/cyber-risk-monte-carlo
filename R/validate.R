@@ -1,7 +1,7 @@
 # Checks on the hand-edited assumption files, so a typo stops the run with a
 # clear message instead of producing a plausible-looking wrong answer.
 
-validate_inputs <- function(scenarios, controls = NULL) {
+validate_inputs <- function(scenarios, controls = NULL, tolerance = NULL) {
   problems <- character(0)
   need <- function(df, cols, file) {
     missing <- setdiff(cols, names(df))
@@ -24,6 +24,15 @@ validate_inputs <- function(scenarios, controls = NULL) {
           "scenarios.csv: need lef_min <= lef_mode <= lef_max, with min < max", s$scenario)
     check(s$loss_p05 > 0 & s$loss_p05 < s$loss_p95,
           "scenarios.csv: need 0 < loss_p05 < loss_p95", s$scenario)
+    # optional columns: blank means the default
+    if ("lef_dist" %in% names(s)) {
+      check(is.na(s$lef_dist) | s$lef_dist %in% c("", "triangular", "pert"),
+            "scenarios.csv: lef_dist must be triangular, pert or blank", s$scenario)
+    }
+    if ("loss_cap" %in% names(s)) {
+      check(is.na(s$loss_cap) | s$loss_cap > s$loss_p95,
+            "scenarios.csv: loss_cap must be blank or above loss_p95", s$scenario)
+    }
   }
 
   if (!is.null(controls) &&
@@ -43,6 +52,15 @@ validate_inputs <- function(scenarios, controls = NULL) {
             k$control)
     }
     check(k$annual_cost > 0, "controls.csv: annual_cost must be > 0", k$control)
+  }
+
+  if (!is.null(tolerance) && need(tolerance, c("loss", "max_probability"), "tolerance.csv")) {
+    t <- tolerance
+    rows <- paste0("loss ", t$loss)
+    check(t$max_probability > 0 & t$max_probability < 1,
+          "tolerance.csv: max_probability must be between 0 and 1", rows)
+    check(c(TRUE, diff(t$loss) > 0 & diff(t$max_probability) < 0),
+          "tolerance.csv: loss must increase and max_probability decrease down the rows", rows)
   }
 
   if (length(problems)) {

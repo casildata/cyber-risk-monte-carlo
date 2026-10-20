@@ -59,17 +59,40 @@ The mean (annualized loss expectancy) sits far above the median: in most years l
 
 ![Loss exceedance curve](figures/loss_exceedance_curve.png)
 
+### Sensitivity to modeling choices
+
+Same seed, one choice changed at a time. Beta-PERT uses the same min / mode / max as the triangular but puts less weight near the extremes, so it lowers the mean event rate whenever the mode sits closer to the minimum, as it does for every scenario here. The cap applies to each single loss, so it cannot move a percentile of annual loss that is already below the cap.
+
+| Model | Total ALE | P95 (1-in-20) | P99 (1-in-100) | P(> $5M) | Largest single event |
+|---|---|---|---|---|---|
+| Base: triangular frequency, uncapped | $1.20M | $4.03M | $7.58M | 3.0% | $31.2M |
+| Beta-PERT frequency | $1.05M | $3.72M | $7.23M | 2.6% | $26.4M |
+| Single loss capped at $10M | $1.19M | $4.03M | $7.58M | 3.0% | $10.0M |
+| Beta-PERT and capped | $1.04M | $3.72M | $7.23M | 2.6% | $10.0M |
+
 ## 3. Control ROI
 
-| Control | Scenario | Annual cost | ALE before | ALE after | Loss avoided / yr (Monte Carlo 95% CI) | ROSI | Years it pays back |
-|---|---|---|---|---|---|---|---|
-| EDR + immutable backups | Ransomware | $150,000 | $337,719 | $84,615 | $253,103 ($240,843 – $264,577) | +69% | 17% |
-| Phishing-resistant MFA + payment call-back | Business email compromise | $60,000 | $239,333 | $68,691 | $170,642 ($167,063 – $174,294) | +184% | 56% |
-| DLP + database encryption | Customer data breach | $120,000 | $380,614 | $176,085 | $204,529 ($195,941 – $212,447) | +70% | 27% |
+| Control | Scenario | Annual cost | Loss avoided / yr (90% uncertainty band) | ROSI (90% band) | P(ROSI < 0) | Years it pays back |
+|---|---|---|---|---|---|---|
+| EDR + immutable backups | Ransomware | $150,000 | $253k ($115k – $429k) | +69% (-23% to +186%) | 14.0% | 17% |
+| Phishing-resistant MFA + payment call-back | Business email compromise | $60,000 | $171k ($75.8k – $289k) | +184% (+26% to +382%) | 1.4% | 56% |
+| DLP + database encryption | Customer data breach | $120,000 | $205k ($91.0k – $356k) | +70% (-24% to +197%) | 14.1% | 27% |
 
-*Years it pays back* is the share of simulated years in which the loss avoided that year exceeds the control's cost. A control can have a strongly positive expected ROSI and still "lose money" in most individual years, because its value comes from the rare bad year.
+**Two kinds of uncertainty.** The expected ROSI averages over everything, including what we don't know. The 90% band and P(ROSI < 0) come from a two-level analysis: the long-run event rate and the control's effectiveness are drawn once and held fixed (10,000 draws), and the expected loss avoided is computed for each draw. P(ROSI < 0) is the chance that, given what we don't know, the control costs more than it saves on average. Severity parameters are treated as known, so the bands are if anything too narrow.
 
-The interval is a bootstrap over simulated years, so it measures Monte Carlo noise in the mean: how much another seed would move it. It is not uncertainty about how well the control works. Effectiveness is redrawn from its triangular range every simulated year, so that uncertainty is averaged into the mean, not reflected in the interval's width.
+*Years it pays back* is the share of simulated years in which the loss avoided that year exceeds the control's cost. A control can have a strongly positive expected ROSI and still "lose money" in most individual years, because its value comes from the rare bad year. For EDR it is close to the share of years with any ransomware event.
+
+![ROSI uncertainty](figures/control_rosi_uncertainty.png)
+
+**Monte Carlo detail.** The interval below is a bootstrap over simulated years: how far another seed would move the mean, not uncertainty about the control. The last column holds the event rate at its expected value, so the remaining risk of losing money comes from the control's effectiveness alone.
+
+| Control | ALE before | ALE after | Loss avoided / yr (Monte Carlo 95% CI) | P(ROSI < 0) if the event rate were known |
+|---|---|---|---|---|
+| EDR + immutable backups | $337,719 | $84,615 | $253,103 ($240,843 – $264,577) | 0.0% |
+| Phishing-resistant MFA + payment call-back | $239,333 | $68,691 | $170,642 ($167,063 – $174,294) | 0.0% |
+| DLP + database encryption | $380,614 | $176,085 | $204,529 ($195,941 – $212,447) | 0.0% |
+
+With the event rate known, no control loses money even at the bottom of its effectiveness range. The risk of a negative return comes from not knowing how often the scenario happens, so a better frequency estimate (see section 4) is worth more here than a better effectiveness estimate.
 
 ![Loss avoided](figures/control_loss_avoided.png)
 
@@ -96,4 +119,20 @@ Corrected sampler: acceptance rate 54%, effective sample size ≈ 4,133 of 19,00
 | Bug 2 only: truncated proposal, no Hastings correction, every iteration | 0.928 | 0.005 | +0.029 |
 | Truncated proposal with Hastings correction, every iteration | 0.900 | 0.005 | +0.000 |
 | Both bugs (original coursework sampler) | 0.931 | 0.005 | +0.032 |
+
+## 5. Risk tolerance
+
+An illustrative risk appetite (`data/assumptions/tolerance.csv`), checked against the simulated total annual loss. ± is one binomial standard error in percentage points.
+
+| Annual loss over | Tolerated probability | Today | With the three controls |
+|---|---|---|---|
+| $1.0M | 50.0% | 36.88% ± 0.34 within | 15.74% ± 0.26 within |
+| $2.5M | 10.0% | 12.22% ± 0.23 **exceeds** | 2.85% ± 0.12 within |
+| $5.0M | 2.0% | 3.04% ± 0.12 **exceeds** | 0.40% ± 0.04 within |
+| $10M | 0.5% | 0.41% ± 0.05 within | 0.03% ± 0.01 within |
+| $20M | 0.1% | 0.03% ± 0.01 within | 0.00% ± 0.00 within |
+
+Between the stated points the tolerance is interpolated on log-log scales. On that curve, today's loss exceedance curve is above the tolerance curve for annual losses between about $1.5M and $8.7M. With the three controls it stays inside the tolerance curve everywhere it is defined.
+
+![Loss exceedance vs. tolerance](figures/loss_exceedance_tolerance.png)
 
