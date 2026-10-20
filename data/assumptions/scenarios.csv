@@ -1,0 +1,6 @@
+scenario,description,lef_min,lef_mode,lef_max,loss_p05,loss_p95
+Ransomware,Encryption of servers with extortion and recovery costs,0.05,0.15,0.40,250000,5000000
+Business email compromise,Fraudulent wire transfer after mailbox takeover,0.50,1.50,4.00,10000,400000
+Customer data breach,Exfiltration of customer records with notification and legal costs,0.10,0.30,0.80,100000,3000000
+DDoS outage,Customer-facing services unavailable,0.50,2.00,6.00,5000,150000
+Insider misuse,Employee or contractor misuses access to data or funds,0.10,0.30,1.00,20000,800000

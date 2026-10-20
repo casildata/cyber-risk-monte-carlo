@@ -1,0 +1,4 @@
+control,scenario,freq_red_min,freq_red_mode,freq_red_max,sev_red_min,sev_red_mode,sev_red_max,annual_cost
+EDR + immutable backups,Ransomware,0.30,0.50,0.70,0.30,0.50,0.70,150000
+Phishing-resistant MFA + payment call-back,Business email compromise,0.50,0.70,0.85,0.00,0.10,0.20,60000
+DLP + database encryption,Customer data breach,0.10,0.25,0.40,0.20,0.40,0.60,120000

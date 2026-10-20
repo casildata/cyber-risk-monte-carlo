@@ -1,0 +1,6 @@
+# R packages (CRAN) used by this repository, one per line.
+# R/check_packages.R installs any that are missing when the scripts run.
+ggplot2
+scales
+patchwork
+MASS        # ships with R
