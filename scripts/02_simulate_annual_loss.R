@@ -59,8 +59,8 @@ p <- ggplot(subset(lec, p_exceed > 0), aes(loss, p_exceed, colour = scenario,
   scale_x_log10(labels = scales::label_dollar(scale_cut = scales::cut_short_scale())) +
   scale_y_continuous(labels = scales::label_percent()) +
   geom_hline(yintercept = 0.05, linetype = 3, colour = "grey40") +
-  annotate("text", x = 1.2e4, y = 0.065, label = "1-in-20 year", hjust = 0, size = 3.2,
-           colour = "grey30") +
+  annotate("text", x = 1.2e4, y = 0.05, label = "1-in-20 year", hjust = 0, vjust = -0.6,
+           size = 3.2, colour = "grey30") +
   labs(title = "Loss exceedance curve",
        subtitle = sprintf("Probability that annual cyber loss exceeds x (%s simulated years)",
                           format(N_YEARS, big.mark = ",")),

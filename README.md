@@ -2,7 +2,7 @@
 
 **FAIR-style annual loss modeling in R: turn analyst estimates into a loss exceedance curve, price security controls by return on investment, and update incident rates with Bayesian MCMC.**
 
-![R](https://img.shields.io/badge/R-4.1%2B-276DC3?logo=r&logoColor=white)
+![R](https://img.shields.io/badge/R-4.4%2B-276DC3?logo=r&logoColor=white)
 [![pipeline](https://github.com/casildata/cyber-risk-monte-carlo/actions/workflows/pipeline.yml/badge.svg)](https://github.com/casildata/cyber-risk-monte-carlo/actions/workflows/pipeline.yml)
 ![Method](https://img.shields.io/badge/method-Monte%20Carlo%20%7C%20bootstrap%20%7C%20MCMC-informational)
 ![Domain](https://img.shields.io/badge/domain-Cyber%20Risk%20Quantification-critical)
@@ -30,7 +30,7 @@ The question a CISO gets from the board: *"How much could we lose to cyber incid
 
 **One-page summary for a board or CFO:** [`docs/board-brief.md`](docs/board-brief.md), generated with the rest of the results.
 
-![Loss exceedance curve](docs/figures/loss_exceedance_curve.png)
+![Loss exceedance vs. risk tolerance, log scales](docs/figures/loss_exceedance_tolerance.png)
 
 > **Data note:** the scenario and control inputs in [`data/assumptions/`](data/assumptions/) are **illustrative assumptions for a hypothetical mid-size company**, not benchmarks. The "historical" records used for input analysis are synthetic. The method is the deliverable.
 
@@ -88,6 +88,8 @@ Full tables and all figures: [`docs/results.md`](docs/results.md).
 
 Rounded to three significant figures, which is more than the Monte Carlo error supports for the tails. Exact values and standard errors for every scenario are in [`docs/results.md`](docs/results.md).
 
+![Loss exceedance curve by scenario](docs/figures/loss_exceedance_curve.png)
+
 Ransomware has a median of $0 yet the highest 1-in-20 loss. Ranking risks by "how often" or by the average alone would hide that.
 
 **Sensitivity.** The same seed, one modeling choice changed at a time:
@@ -105,9 +107,9 @@ Ransomware has a median of $0 yet the highest 1-in-20 loss. Ranking risks by "ho
 
 | Control | Annual cost | Loss avoided / yr (90% uncertainty band) | ROSI (90% band) | P(ROSI < 0) | Years it pays back |
 |---|---|---|---|---|---|
-| EDR + immutable backups | $150k | $253k ($115k – $429k) | +69% (−23% to +186%) | 14.0% | 17% |
+| EDR + immutable backups | $150k | $253k ($115k – $429k) | +69% (−23% to +186%) | about 14% | 17% |
 | Phishing-resistant MFA + payment call-back | $60k | $171k ($75.8k – $289k) | +184% (+26% to +382%) | 1.4% | 56% |
-| DLP + database encryption | $120k | $205k ($91.0k – $356k) | +70% (−24% to +197%) | 14.1% | 27% |
+| DLP + database encryption | $120k | $205k ($91.0k – $356k) | +70% (−24% to +197%) | about 14% | 27% |
 
 **Why thinning?** Each control is applied to the *same* simulated events: an event is prevented with probability *r<sub>f</sub>*, which gives exactly a Poisson process at rate λ(1 − *r<sub>f</sub>*). Comparing "with" and "without" on identical draws removes most of the simulation noise from the difference.
 
@@ -133,9 +135,9 @@ The Monte Carlo 95% CI for each mean, which measures only simulation noise, is i
 | $10M | 0.5% | 0.41% | 0.03% |
 | $20M | 0.1% | 0.03% | 0.00% |
 
-![Loss exceedance vs. risk tolerance, log scales](docs/figures/loss_exceedance_tolerance.png)
+The figure at the top of this page plots this table on log-probability scales.
 
-Today's curve is above tolerance for annual losses between about $1.5M and $8.7M: the middle of the tail, not the extreme end. With the three controls it is inside everywhere. On log-probability scales the far tail is visibly a staircase: below about 0.05%, each step is one or two simulated years.
+Today's curve is above tolerance for annual losses between about $1.5M and $8.7M: the middle of the tail, not the extreme end. The upper end rests on few simulated years and moves between about $8.4M and $9.4M with the seed. With the three controls it is inside everywhere. On log-probability scales the far tail is visibly a staircase: below about 0.05%, each step is one or two simulated years.
 
 ### Validating the MCMC sampler
 
@@ -171,17 +173,17 @@ The model follows the [FAIR](https://www.fairinstitute.org/) structure at its to
 | Loss Magnitude (LM) | `loss_p05` / `loss_p95` → lognormal loss per event | One distribution per event, with no primary/secondary loss split |
 | Annualized loss exposure | Mean simulated annual loss (ALE) | |
 | Loss exceedance curve | P(annual loss > x) over 20,000 simulated years | Scenarios are independent; a copula is on the roadmap |
-| Control effect | `freq_red_*` reduces LEF by thinning, `sev_red_*` reduces LM | Each control acts on one scenario; no control interactions |
+| Control effect | `freq_red_*` reduces LEF by thinning, `sev_red_*` reduces LM | Each control acts on one scenario, and validation rejects a second control on the same scenario; no control interactions |
 
 ### NIST CSF 2.0
 
 | Outcome | How this repo supports it |
 |---|---|
-| **GV.RM-02** Risk appetite and risk tolerance statements are established | `tolerance.csv` states the appetite as a curve, and script 05 tests the loss exceedance curve against it before and after controls |
-| **GV.RM-06** A standardized method for calculating and prioritizing cybersecurity risks is established | One method, frequency × magnitude in dollars, is applied to every scenario |
-| **ID.RA-04** Potential impacts and likelihoods of threats are identified and recorded | `scenarios.csv` records a likelihood range and a 90% impact interval per scenario |
-| **ID.RA-05** Threats, vulnerabilities, likelihoods and impacts are used to understand inherent risk and prioritize risk response | ALE and P95 per scenario, before controls |
-| **ID.RA-06** Risk responses are chosen, prioritized, planned, tracked and communicated | ROSI, P(ROSI < 0) and residual risk for each candidate control, summarized in the board brief |
+| **GV.RM-02** Risk appetite and risk tolerance statements are established, communicated, and maintained | `tolerance.csv` states the appetite as a curve, and script 05 tests the loss exceedance curve against it before and after controls |
+| **GV.RM-06** A standardized method for calculating, documenting, categorizing, and prioritizing cybersecurity risks is established and communicated | One method, frequency × magnitude in dollars, is applied to every scenario |
+| **ID.RA-04** Potential impacts and likelihoods of threats exploiting vulnerabilities are identified and recorded | `scenarios.csv` records a likelihood range and a 90% impact interval per scenario |
+| **ID.RA-05** Threats, vulnerabilities, likelihoods, and impacts are used to understand inherent risk and inform risk response prioritization | ALE and P95 per scenario, before controls |
+| **ID.RA-06** Risk responses are chosen, prioritized, planned, tracked, and communicated | ROSI, P(ROSI < 0) and residual risk for each candidate control, summarized in the board brief |
 
 ### Scenarios, ATT&CK and CIS Controls v8.1
 
@@ -199,12 +201,12 @@ Tags are for orientation. They are my mapping, not an official crosswalk. Every 
 
 ### Requirements
 
-- R 4.1 or later (tested on 4.6.1) with `ggplot2`, `scales` and `patchwork` (`MASS` ships with R), plus `testthat` for the tests.
+- R 4.4 or later (tested on 4.6.1) with `ggplot2`, `scales` and `patchwork` (`MASS` ships with R), plus `testthat` for the tests.
 - No external data: the inputs are in `data/assumptions/`.
 
 ### Install
 
-Missing packages are installed automatically the first time you run the scripts; an interactive R session (RStudio, VS Code) asks first. The list lives in [`r-packages.txt`](r-packages.txt). To install everything up front instead:
+Nothing is installed automatically: if a package listed in [`r-packages.txt`](r-packages.txt) is missing, the run stops and prints the install command. To install the current CRAN versions:
 
 ```r
 install.packages(c("ggplot2", "scales", "patchwork", "testthat"))
@@ -228,7 +230,7 @@ To model your own organization, edit `scenarios.csv`, `controls.csv` and `tolera
 
 ### Output
 
-About 20 seconds. Edits to the assumption files are validated first: a typo such as `lef_mode` outside `lef_min`–`lef_max`, a reduction above 100% or a control pointing at a missing scenario stops the run with a message that names the row. The report goes to `docs/results.md`, the board brief to `docs/board-brief.md` and the figures to `docs/figures/`; intermediate tables go to `outputs/` (git-ignored).
+About 20 seconds. Edits to the assumption files are validated first: a typo such as `lef_mode` outside `lef_min`–`lef_max`, a reduction above 100%, a control pointing at a missing scenario or two controls on one scenario stops the run with a message that names the row. The report goes to `docs/results.md`, the board brief to `docs/board-brief.md` and the figures to `docs/figures/`; intermediate tables go to `outputs/` (git-ignored).
 
 `outputs/annual_loss_by_year.csv.gz` holds the loss for every simulated year and scenario, for downstream use such as optimizing a control budget against the tail rather than the mean. The same file is attached to the [v1.0 release](https://github.com/casildata/cyber-risk-monte-carlo/releases/tag/v1.0).
 
@@ -241,10 +243,10 @@ The unit tests check the samplers against their closed forms (triangular and PER
 ```
 cyber-risk-monte-carlo/
 ├── run_all.R                    # runs scripts 01-06, writes docs/results.md
-├── r-packages.txt               # R packages (installed automatically if missing)
+├── r-packages.txt               # R packages the scripts need
 ├── renv.lock                    # exact package versions
 ├── R/
-│   ├── check_packages.R         # installs missing packages from r-packages.txt
+│   ├── check_packages.R         # stops with install instructions if a package is missing
 │   ├── distributions.R          # triangular and PERT samplers, lognormal-from-interval, dollar formats
 │   ├── model.R                  # event simulation, controls, two-level draws, exceedance
 │   ├── mcmc.R                   # Metropolis-Hastings samplers

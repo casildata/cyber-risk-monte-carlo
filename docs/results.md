@@ -98,7 +98,7 @@ With the event rate known, no control loses money even at the bottom of its effe
 
 ## 4. Bayesian incident rate (Metropolis-Hastings)
 
-8 incidents in 10 years with a near-flat prior gives an exact Gamma(9, 10.01) posterior, which makes a good test for the sampler.
+8 insider-misuse incidents in 10 years with a near-flat prior gives an exact Gamma(9, 10.01) posterior, which makes a good test for the sampler.
 
 | method | mean | q025 | median | q975 | draws_kept |
 |---|---|---|---|---|---|

@@ -15,6 +15,9 @@ risks <- risks[order(-risks$p95), ]
 ctl <- merge(roi, uncert, by = "control", sort = FALSE)
 ctl <- ctl[order(-ctl$rosi), ]
 breaches <- tol[tol$p_before > tol$max_probability, ]
+# the event rate drives the chance of losing money only if, with the rate known,
+# no control loses money
+rate_drives_it <- all(ctl$p_rosi_negative_rate_known < 0.001)
 
 pct <- function(x, digits = 0) sprintf(paste0("%.", digits, "f%%"), 100 * x)
 # chance-of-loss figures: one decimal below 10%, so 1.4% doesn't read as 1%
@@ -77,7 +80,8 @@ brief <- c(
   if (all(ctl$rosi[-1] > 0))
     paste0("- The other controls also pay off on average, but the chance that each costs ",
            "more than it saves is ", pct_span(ctl$p_rosi_negative[-1]),
-           ", because we don't know how often those incidents happen."),
+           if (rate_drives_it) ", because we don't know how often those incidents happen" else "",
+           "."),
   paste0("- Together the three cost ", dollars_sig(sum(roi$annual_cost)), " a year and cut ",
          "expected loss by ", dollars_sig(sum(roi$avoided_mean)), " a year."),
   "",
@@ -94,7 +98,8 @@ brief <- c(
   md(ctl_tbl),
   "",
   paste0("The range reflects what we don't know: how often each incident happens and how ",
-         "well the control works. Almost all of the risk of losing money comes from the first."),
+         "well the control works.",
+         if (rate_drives_it) " Almost all of the risk of losing money comes from the first." else ""),
   "",
   "## Assumptions and limits",
   "",

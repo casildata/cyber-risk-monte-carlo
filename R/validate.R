@@ -42,6 +42,11 @@ validate_inputs <- function(scenarios, controls = NULL, tolerance = NULL) {
     k <- controls
     check(k$scenario %in% scenarios$scenario,
           "controls.csv: scenario not found in scenarios.csv", paste0(k$control, " -> ", k$scenario))
+    # each control's loss avoided is measured against the untreated loss, so two
+    # controls on one scenario would be subtracted twice
+    check(!duplicated(k$scenario),
+          "controls.csv: one control per scenario (combined controls are not modeled yet)",
+          paste0(k$control, " -> ", k$scenario))
     for (p in c("freq_red", "sev_red")) {
       lo <- k[[paste0(p, "_min")]]
       md <- k[[paste0(p, "_mode")]]

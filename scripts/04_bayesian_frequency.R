@@ -1,5 +1,5 @@
 # Bayesian update of an incident rate with Metropolis-Hastings.
-# Story: 8 account-takeover incidents were found in 10 years of logs. With a
+# Story: 8 insider-misuse incidents were found in 10 years of logs. With a
 # near-flat Gamma(1, 0.01) prior on the yearly rate lambda, the posterior is
 #   p(lambda | data) ∝ lambda^8 * exp(-10.01 * lambda)  =  Gamma(shape 9, rate 10.01)
 # That closed form lets us check the sampler against the exact answer.
@@ -92,7 +92,7 @@ write.csv(bugs, "outputs/mcmc_bug_isolation.csv", row.names = FALSE)
 print(bugs)
 
 report_add("## 4. Bayesian incident rate (Metropolis-Hastings)\n\n",
-           "8 incidents in 10 years with a near-flat prior gives an exact Gamma(9, 10.01) ",
+           "8 insider-misuse incidents in 10 years with a near-flat prior gives an exact Gamma(9, 10.01) ",
            "posterior, which makes a good test for the sampler.\n\n",
            paste(md_table(compare), collapse = "\n"), "\n\n",
            sprintf("Corrected sampler: acceptance rate %.0f%%, effective sample size ≈ %s of %s ",

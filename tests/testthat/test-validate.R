@@ -12,6 +12,11 @@ test_that("a misspelled scenario in controls.csv is an error, not ROSI = -100%",
                "scenario not found")
 })
 
+test_that("two controls on one scenario are rejected until they can be combined", {
+  expect_error(validate_inputs(scen, rbind(ctl, transform(ctl[1, ], control = "Second"))),
+               "one control per scenario")
+})
+
 test_that("an out-of-order frequency estimate is caught", {
   bad <- scen
   bad$lef_mode[1] <- bad$lef_max[1] * 2

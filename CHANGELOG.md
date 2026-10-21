@@ -28,6 +28,12 @@ homework scenarios were course-provided and are not included; the techniques car
 - Generated one-page board brief (`docs/board-brief.md`, `06_board_brief.R`).
 - Beta-PERT frequency option and per-event loss cap (`lef_dist`, `loss_cap`), with a sensitivity table.
 - Model logic moved into `R/model.R` and `R/mcmc.R`, with `testthat` unit tests.
+- Validation rejects two controls on one scenario, which would subtract the loss avoided twice (combined controls are not modeled yet).
+- Board-brief statements that the event rate drives the chance of losing money now print only when the numbers support them.
+- README leads with the log-scale tolerance figure; P(ROSI < 0) shown as "about 14%" for EDR and DLP (the decimal is seed noise); NIST CSF 2.0 outcomes quoted verbatim.
+- Minimum R raised to 4.4 (`renv.lock` pins MASS 7.3-65); CI pinned to Ubuntu 24.04.
+- Missing packages stop the run with install instructions instead of installing automatically.
+- The MCMC example is now framed as insider-misuse incidents, a scenario the model includes.
 - GitHub Actions: unit tests, full pipeline, a check that every reported number is reproduced, and a gitleaks secret scan; `renv.lock` pins package versions.
 - Year-by-scenario annual losses exported (`annual_loss_by_year.csv.gz`) and attached to the v1.0 release.
 - The loss-avoided figure states how many years with $0 avoided it leaves out.
