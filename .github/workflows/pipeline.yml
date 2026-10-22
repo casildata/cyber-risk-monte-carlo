@@ -39,7 +39,7 @@ jobs:
                         repos = getOption("repos"), prompt = FALSE)
 
       - name: Unit tests
-        run: Rscript -e 'testthat::test_dir("tests/testthat", stop_on_failure = TRUE)'
+        run: Rscript tests/testthat.R
 
       - name: Run the pipeline
         run: Rscript run_all.R
