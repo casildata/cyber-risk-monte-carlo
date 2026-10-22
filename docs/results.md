@@ -104,7 +104,7 @@ With the event rate known, no control loses money even at the bottom of its effe
 |---|---|---|---|---|---|
 | Exact Gamma(9, 10.01) | 0.899 | 0.411 | 0.866 | 1.575 | – |
 | Corrected MH (log random walk) | 0.899 | 0.407 | 0.864 | 1.602 | 19,000 |
-| Original coursework MH | 0.934 | 0.390 | 0.906 | 1.678 | 6,785 |
+| Original 2022 MH | 0.934 | 0.390 | 0.906 | 1.678 | 6,785 |
 
 Corrected sampler: acceptance rate 54%, effective sample size ≈ 4,133 of 19,000 post-burn-in draws. The original version keeps only accepted proposals and uses an uncorrected asymmetric proposal; compare its row with the exact answer.
 
@@ -118,7 +118,7 @@ Corrected sampler: acceptance rate 54%, effective sample size ≈ 4,133 of 19,00
 | Bug 1 only: log random walk, accepted proposals only | 0.893 | 0.002 | -0.006 |
 | Bug 2 only: truncated proposal, no Hastings correction, every iteration | 0.928 | 0.005 | +0.029 |
 | Truncated proposal with Hastings correction, every iteration | 0.900 | 0.005 | +0.000 |
-| Both bugs (original coursework sampler) | 0.931 | 0.005 | +0.032 |
+| Both bugs (original 2022 sampler) | 0.931 | 0.005 | +0.032 |
 
 ## 5. Risk tolerance
 

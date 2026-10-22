@@ -31,7 +31,7 @@ mh_log_walk <- function(n_iter, init, step, log_target, accepted_only = FALSE) {
        acceptance = accepted / n_iter)
 }
 
-# The coursework sampler: a normal proposal truncated below at 0. The defaults
+# The original 2022 sampler: a normal proposal truncated below at 0. The defaults
 # reproduce the original (both bugs); hastings = TRUE adds the missing correction
 # q(now | cand) / q(cand | now) = P(N(now, sd) > 0) / P(N(cand, sd) > 0).
 mh_truncated <- function(n_iter, init, cand_sd, target, accepted_only = TRUE,

@@ -4,7 +4,7 @@
 #   p(lambda | data) ∝ lambda^8 * exp(-10.01 * lambda)  =  Gamma(shape 9, rate 10.01)
 # That closed form lets us check the sampler against the exact answer.
 #
-# Two bugs from the original coursework version are fixed here:
+# Two bugs from the original 2022 version are fixed here:
 #   1. Only accepted proposals were stored. MH must record the current state on
 #      EVERY iteration (a rejection repeats the old value), or the chain is biased.
 #   2. Proposals came from a normal truncated at 0. Its normalizing constant
@@ -20,7 +20,7 @@ set.seed(321)
 SHAPE <- 9
 RATE  <- 10.01
 log_target <- function(lambda) (SHAPE - 1) * log(lambda) - RATE * lambda
-target <- function(lambda) lambda^8 * exp(-RATE * lambda)  # as in the coursework
+target <- function(lambda) lambda^8 * exp(-RATE * lambda)  # as in the original version
 # The samplers are in R/mcmc.R.
 
 N_ITER <- 20000
@@ -31,7 +31,7 @@ orig  <- mh_truncated(N_ITER, init = 5, cand_sd = 1.4, target)$draws
 
 exact_q <- qgamma(c(0.025, 0.5, 0.975), SHAPE, RATE)
 compare <- data.frame(
-  method = c("Exact Gamma(9, 10.01)", "Corrected MH (log random walk)", "Original coursework MH"),
+  method = c("Exact Gamma(9, 10.01)", "Corrected MH (log random walk)", "Original 2022 MH"),
   mean = round(c(SHAPE / RATE, mean(post), mean(orig)), 3),
   q025 = round(c(exact_q[1], quantile(post, 0.025), quantile(orig, 0.025)), 3),
   median = round(c(exact_q[2], median(post), median(orig)), 3),
@@ -72,7 +72,7 @@ variants <- list(
     function() mh_truncated(N_ITER, 5, 1.4, target, accepted_only = FALSE),
   "Truncated proposal with Hastings correction, every iteration" =
     function() mh_truncated(N_ITER, 5, 1.4, target, accepted_only = FALSE, hastings = TRUE),
-  "Both bugs (original coursework sampler)" =
+  "Both bugs (original 2022 sampler)" =
     function() mh_truncated(N_ITER, 5, 1.4, target)
 )
 chain_means <- sapply(variants, function(run) {

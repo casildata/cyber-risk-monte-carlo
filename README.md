@@ -2,13 +2,13 @@
 
 **FAIR-style annual loss modeling in R: turn analyst estimates into a loss exceedance curve, price security controls by return on investment, and update incident rates with Bayesian MCMC.**
 
-![R](https://img.shields.io/badge/R-4.4%2B-276DC3?logo=r&logoColor=white)
 [![pipeline](https://github.com/casildata/cyber-risk-monte-carlo/actions/workflows/pipeline.yml/badge.svg)](https://github.com/casildata/cyber-risk-monte-carlo/actions/workflows/pipeline.yml)
+![R](https://img.shields.io/badge/R-4.4%2B-276DC3?logo=r&logoColor=white)
 ![Method](https://img.shields.io/badge/method-Monte%20Carlo%20%7C%20bootstrap%20%7C%20MCMC-informational)
 ![Domain](https://img.shields.io/badge/domain-Cyber%20Risk%20Quantification-critical)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-> **Origin:** built on simulation methods from **ISQS 7339 Simulation & Optimization** at Texas Tech University (Spring 2022): input distributions, distribution fitting, Monte Carlo risk analysis, bootstrapping and Metropolis-Hastings. The coursework applied them to travel times, a drug launch and a newsvendor; this repository applies them to cyber risk.
+> **Origin:** built on simulation methods from my graduate work in **Simulation & Optimization** at Texas Tech University (2022): input distributions, distribution fitting, Monte Carlo risk analysis, bootstrapping and Metropolis-Hastings. The original studies applied them to travel times, a drug launch and a newsvendor; this repository applies them to cyber risk.
 
 ---
 
@@ -24,7 +24,7 @@ The question a CISO gets from the board: *"How much could we lose to cyber incid
 | **Risk tolerance** | Outside an illustrative appetite for annual losses of about $1.5M–$8.7M: P(loss > $2.5M) is **12.2%** against 10% tolerated. The three controls bring the curve back inside. |
 | **Best control by ROSI** | Phishing-resistant MFA + payment call-back: **+184%** expected, **1.4%** chance it loses money |
 | **Ransomware control** | EDR + immutable backups: **+69%** expected, but a **14%** chance it loses money, almost entirely because ransomware frequency is uncertain. It pays back in only 17% of years, because its value is the rare bad year. |
-| **Bayesian rate check** | Corrected Metropolis-Hastings matches the exact posterior mean (0.899); the original coursework sampler was biased (0.934), almost entirely from a missing Hastings correction |
+| **Bayesian rate check** | Corrected Metropolis-Hastings matches the exact posterior mean (0.899); the original 2022 sampler was biased (0.934), almost entirely from a missing Hastings correction |
 
 ± is one Monte Carlo standard error (bootstrap over simulated years): how far another random seed could move the figure. It says nothing about whether the inputs are right.
 
@@ -65,7 +65,7 @@ Solid arrows are the simulation. Dashed arrows are checks: input analysis tests 
 | 1. Input analysis | [`01_input_analysis.R`](scripts/01_input_analysis.R) | Fit Poisson vs. negative binomial to monthly counts (AIC, χ² goodness of fit, dispersion); fit lognormal, gamma, Weibull and exponential to past losses (MLE, AIC, Kolmogorov-Smirnov, Q-Q plot) |
 | 2. Annual loss | [`02_simulate_annual_loss.R`](scripts/02_simulate_annual_loss.R) | Input validation; compound Poisson-lognormal per scenario with uncertain frequency; loss exceedance curve; ALE, P90/P95/P99 with bootstrap Monte Carlo standard errors |
 | 3. Control ROI | [`03_control_roi.R`](scripts/03_control_roi.R) | Controls thin the same simulated events (common random numbers); expected ROSI; two-level uncertainty for a 90% band and P(ROSI < 0) |
-| 4. Bayesian rate | [`04_bayesian_frequency.R`](scripts/04_bayesian_frequency.R) | Random-walk Metropolis-Hastings on log λ, burn-in, acceptance rate, effective sample size, validated against the exact Gamma posterior; each coursework bug isolated over 10 chains |
+| 4. Bayesian rate | [`04_bayesian_frequency.R`](scripts/04_bayesian_frequency.R) | Random-walk Metropolis-Hastings on log λ, burn-in, acceptance rate, effective sample size, validated against the exact Gamma posterior; each bug in the original sampler isolated over 10 chains |
 | 5. Risk tolerance | [`05_risk_tolerance.R`](scripts/05_risk_tolerance.R) | Loss exceedance curve vs. a tolerance curve on log-probability scales, before and after the controls |
 | 6. Board brief | [`06_board_brief.R`](scripts/06_board_brief.R) | One-page summary built from the tables above |
 
@@ -145,9 +145,9 @@ Today's curve is above tolerance for annual losses between about $1.5M and $8.7M
 |---|---|---|
 | Exact Gamma(9, 10.01) | 0.899 | 0.411 – 1.575 |
 | **Corrected** Metropolis-Hastings | 0.899 | 0.407 – 1.602 |
-| Original coursework version | 0.934 | 0.390 – 1.678 |
+| Original 2022 version | 0.934 | 0.390 – 1.678 |
 
-The coursework sampler had two bugs: it stored only *accepted* proposals, and it drew proposals from a normal truncated at 0 without the Hastings correction that an asymmetric proposal needs. One chain can't tell a bias of a few hundredths from noise, so script 04 runs each bug on its own, 10 chains of 20,000 iterations each, first 1,000 dropped:
+The original 2022 sampler had two bugs: it stored only *accepted* proposals, and it drew proposals from a normal truncated at 0 without the Hastings correction that an asymmetric proposal needs. One chain can't tell a bias of a few hundredths from noise, so script 04 runs each bug on its own, 10 chains of 20,000 iterations each, first 1,000 dropped:
 
 | Sampler | Posterior mean | Chain-to-chain sd | Bias vs. exact 0.899 |
 |---|---|---|---|
@@ -233,6 +233,8 @@ To model your own organization, edit `scenarios.csv`, `controls.csv` and `tolera
 About 20 seconds. Edits to the assumption files are validated first: a typo such as `lef_mode` outside `lef_min`–`lef_max`, a reduction above 100%, a control pointing at a missing scenario or two controls on one scenario stops the run with a message that names the row. The report goes to `docs/results.md`, the board brief to `docs/board-brief.md` and the figures to `docs/figures/`; intermediate tables go to `outputs/` (git-ignored).
 
 `outputs/annual_loss_by_year.csv.gz` holds the loss for every simulated year and scenario, for downstream use such as optimizing a control budget against the tail rather than the mean. The same file is attached to the [v1.0 release](https://github.com/casildata/cyber-risk-monte-carlo/releases/tag/v1.0).
+
+**Related:** [security-budget-optimizer](https://github.com/casildata/security-budget-optimizer) takes the scenario ALEs from this release and picks the control portfolio that removes the most expected loss under a budget, compliance mandates and analyst capacity.
 
 ### Tests and CI
 

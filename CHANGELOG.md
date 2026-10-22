@@ -1,11 +1,10 @@
-# Changelog: coursework → public repository
+# Changelog: from the 2022 original to this release
 
 ## Rebuild for publication (2026)
 
-**Reframed** the ISQS 7339 Homework 2 simulation engine around cyber risk. The
-homework scenarios were course-provided and are not included; the techniques carry over:
+**Reframed** the original 2022 simulation engine around cyber risk. The original problem scenarios came from the graduate program and are not redistributed; the techniques carry over:
 
-| Homework technique | Where it lives now |
+| Technique from the study | Where it lives now |
 |---|---|
 | Monte Carlo with triangular / uniform / normal inputs, quantile intervals | `02_simulate_annual_loss.R` (frequency and severity uncertainty, P95/P99) |
 | P(outcome < 0) for the NPV model | P(annual loss > threshold) and "years a control pays back" |
@@ -16,7 +15,7 @@ homework scenarios were course-provided and are not included; the techniques car
 **Improvements**
 - Strengthened the Metropolis-Hastings sampler: records the chain state every iteration and uses a symmetric log-scale proposal with the Jacobian (posterior mean now matches the exact 0.899).
 - Burn-in applied consistently to every summary.
-- Bug-isolation table: each coursework sampler bug run on its own over 10 chains. The missing Hastings correction causes almost all of the bias (+0.029); storing only accepted proposals adds −0.006.
+- Bug-isolation table: each bug in the original sampler run on its own over 10 chains. The missing Hastings correction causes almost all of the bias (+0.029); storing only accepted proposals adds −0.006.
 - Bootstrap Monte Carlo standard errors for the mean, P95 and P99 of every scenario; README figures rounded to match.
 - The control interval is labeled as a Monte Carlo CI, with an explanation that it is not uncertainty about control effectiveness.
 - Input validation for `scenarios.csv` and `controls.csv`.
@@ -41,7 +40,7 @@ homework scenarios were course-provided and are not included; the techniques car
 - Added `run_all.R`, a generated results report and figures.
 
 **Not included**
-- Course-provided problems and data files.
+- Third-party problem statements and data files from the original program.
 
-## Original submission (Spring 2022)
-- ISQS 7339 Homework 2: Monte Carlo simulation, input analysis, random-number generation, MCMC
+## Original work (2022)
+- Graduate study in Simulation & Optimization, Texas Tech University: Monte Carlo simulation, input analysis, random-number generation, MCMC
