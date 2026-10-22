@@ -15,3 +15,7 @@ outputs/*
 Thumbs.db
 desktop.ini
 ~$*
+
+# renv
+renv/
+.Rprofile
