@@ -115,26 +115,37 @@ report_add("## 2. Annual loss distribution\n\n",
            paste(md_table(se_fmt), collapse = "\n"), "\n\n",
            "![Loss exceedance curve](figures/loss_exceedance_curve.png)\n")
 
-# ---- Sensitivity: frequency distribution and a loss cap ---------------------------
+# ---- Sensitivity: frequency distribution, a loss cap and dependence ---------------
 # Re-run with the same seed, changing one modeling choice at a time:
 #   - beta-PERT instead of triangular for the event rate (the usual FAIR choice)
 #   - a cap on any single loss. Uncapped, the largest simulated event is far beyond
 #     what a mid-size company could pay; $10M is an illustrative ceiling.
+#   - double extortion: a share of ransomware events also leak customer data, with
+#     the breach frequency unchanged on average (R/model.R: simulate_events)
 SENS_CAP <- 10e6
-sens_run <- function(label, lef_dist = "triangular", loss_cap = NA) {
+P_EXT <- 0.3
+BREACH <- "Customer data breach"
+sens_run <- function(label, lef_dist = "triangular", loss_cap = NA, p_ext = 0) {
   set.seed(1234)
-  ev <- simulate_events(scenarios, N_YEARS, lef_dist = lef_dist, loss_cap = loss_cap)
-  tot <- rowSums(annual_losses(ev, scenarios))
-  data.frame(Model = label, ale = mean(tot), p95 = unname(quantile(tot, 0.95)),
+  ev <- simulate_events(scenarios, N_YEARS, lef_dist = lef_dist, loss_cap = loss_cap,
+                        p_ext = p_ext)
+  ann <- annual_losses(ev, scenarios)
+  tot <- rowSums(ann)
+  data.frame(Model = label, p_ext = p_ext, ale = mean(tot), p95 = unname(quantile(tot, 0.95)),
              p99 = unname(quantile(tot, 0.99)), p_over_5m = mean(tot > 5e6),
-             largest_event = max(ev$loss))
+             largest_event = max(ev$loss),
+             breach_ale = if (BREACH %in% colnames(ann)) mean(ann[, BREACH]) else NA)
 }
 sens <- rbind(
   sens_run("Base: triangular frequency, uncapped"),
   sens_run("Beta-PERT frequency", lef_dist = "pert"),
   sens_run(paste0("Single loss capped at ", dollars_sig(SENS_CAP, 2)), loss_cap = SENS_CAP),
-  sens_run("Beta-PERT and capped", lef_dist = "pert", loss_cap = SENS_CAP)
+  sens_run("Beta-PERT and capped", lef_dist = "pert", loss_cap = SENS_CAP),
+  if (all(c("Ransomware", BREACH) %in% scenarios$scenario))
+    sens_run(sprintf("Double extortion: %.0f%% of ransomware events also leak data",
+                     100 * P_EXT), p_ext = P_EXT)
 )
+dex <- sens[sens$p_ext > 0, ]
 write.csv(sens, "outputs/sensitivity.csv", row.names = FALSE)
 sens_fmt <- data.frame(
   Model = sens$Model,
@@ -151,4 +162,15 @@ report_add("### Sensitivity to modeling choices\n\n",
            "event rate whenever the mode sits closer to the minimum, as it does for every ",
            "scenario here. The cap applies to each single loss, so it cannot move a ",
            "percentile of annual loss that is already below the cap.\n\n",
-           paste(md_table(sens_fmt), collapse = "\n"), "\n")
+           paste(md_table(sens_fmt), collapse = "\n"), "\n",
+           if (nrow(dex))
+             paste0("\n**Dependence.** The base model treats the scenarios as independent. ",
+                    "In the double-extortion run, each ransomware event also causes a ",
+                    "customer data breach with probability ", P_EXT, ", and the standalone ",
+                    "breach rate is lowered by the same expected number of events. Breach ",
+                    "frequency is unchanged on average (breach ALE ",
+                    dollars_sig(sens$breach_ale[1]), " in the base run, ",
+                    dollars_sig(dex$breach_ale), " here), so only the dependence changes: ",
+                    "large breach losses now arrive in ransomware years. The 1-in-100-year ",
+                    "loss moves from ", dollars_sig(sens$p99[1]), " to ",
+                    dollars_sig(dex$p99), ".\n"))

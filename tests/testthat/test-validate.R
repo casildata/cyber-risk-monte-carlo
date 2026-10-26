@@ -12,9 +12,9 @@ test_that("a misspelled scenario in controls.csv is an error, not ROSI = -100%",
                "scenario not found")
 })
 
-test_that("two controls on one scenario are rejected until they can be combined", {
-  expect_error(validate_inputs(scen, rbind(ctl, transform(ctl[1, ], control = "Second"))),
-               "one control per scenario")
+test_that("two controls on one scenario are allowed; a repeated control name is not", {
+  expect_true(validate_inputs(scen, rbind(ctl, transform(ctl[1, ], control = "Second"))))
+  expect_error(validate_inputs(scen, rbind(ctl, ctl[1, ])), "duplicate control name")
 })
 
 test_that("an out-of-order frequency estimate is caught", {
@@ -38,5 +38,6 @@ test_that("a tolerance curve must fall as the loss rises", {
 test_that("optional columns are checked when present", {
   expect_error(validate_inputs(transform(scen, lef_dist = "beta")), "lef_dist")
   expect_error(validate_inputs(transform(scen, loss_cap = 1)), "loss_cap")
+  expect_error(validate_inputs(transform(scen, loss_uncertainty = 0.5)), "loss_uncertainty")
   expect_true(validate_inputs(transform(scen, lef_dist = "pert", loss_cap = NA)))
 })

@@ -1,5 +1,5 @@
 # Risk tolerance: is the loss exceedance curve inside the organization's appetite,
-# before and after the three controls?
+# before and after the proposed controls?
 # The tolerance curve (data/assumptions/tolerance.csv) is the board's statement of
 # the most it will accept, e.g. "no more than a 10% chance of losing over $2.5M in a
 # year". Between the stated points it is interpolated on log-log scales.
@@ -11,10 +11,10 @@ events    <- readRDS("outputs/events.rds")
 scenarios <- read.csv("data/assumptions/scenarios.csv")
 tolerance <- read.csv("data/assumptions/tolerance.csv")
 validate_inputs(scenarios, tolerance = tolerance)
-avoided   <- readRDS("outputs/control_avoided_by_year.rds")
+avoided   <- readRDS("outputs/combined_avoided_by_year.rds")
 
 before <- rowSums(annual_losses(events, scenarios))
-after  <- before - rowSums(avoided)  # each control acts on a different scenario
+after  <- before - avoided  # controls on one scenario compound (script 03)
 n_years <- length(before)
 tolerated <- function(x) {
   exp(approx(log(tolerance$loss), log(tolerance$max_probability), log(x), rule = 1)$y)
@@ -47,7 +47,7 @@ over_after  <- over(after)
 x_grid <- 10^seq(5.3, 7.7, length.out = 300)
 curves <- rbind(
   data.frame(curve = "Today", loss = x_grid, p = exceedance(before, x_grid)),
-  data.frame(curve = "With the three controls", loss = x_grid, p = exceedance(after, x_grid))
+  data.frame(curve = "With the proposed controls", loss = x_grid, p = exceedance(after, x_grid))
 )
 curves <- subset(curves, p > 0)
 tol_df <- data.frame(loss = tolerance$loss, p = tolerance$max_probability)
@@ -57,7 +57,7 @@ p <- ggplot() +
   geom_step(data = curves, aes(loss, p, colour = curve), linewidth = 0.9) +
   annotate("text", x = max(tolerance$loss), y = min(tolerance$max_probability) * 1.8,
            label = "risk tolerance", colour = "#e53e3e", hjust = 0.5, size = 3.4) +
-  scale_colour_manual(values = c("Today" = "black", "With the three controls" = "#2b6cb0")) +
+  scale_colour_manual(values = c("Today" = "black", "With the proposed controls" = "#2b6cb0")) +
   scale_x_log10(labels = scales::label_dollar(scale_cut = scales::cut_short_scale())) +
   scale_y_log10(labels = scales::label_percent(accuracy = 0.01),
                 breaks = c(0.5, 0.2, 0.1, 0.05, 0.02, 0.01, 0.005, 0.002, 0.001, 0.0005, 0.0002)) +
@@ -77,7 +77,7 @@ check_fmt <- data.frame(
   `Annual loss over` = dollars_sig(tolerance$loss, 2),
   `Tolerated probability` = sprintf("%.1f%%", 100 * tolerance$max_probability),
   `Today` = paste(fmt_p(p_before, check$se_before), verdict(p_before)),
-  `With the three controls` = paste(fmt_p(p_after, check$se_after), verdict(p_after)),
+  `With the proposed controls` = paste(fmt_p(p_after, check$se_after), verdict(p_after)),
   check.names = FALSE
 )
 describe_over <- function(r) {
@@ -92,7 +92,7 @@ report_add("## 5. Risk tolerance\n\n",
            paste(md_table(check_fmt), collapse = "\n"), "\n\n",
            "Between the stated points the tolerance is interpolated on log-log scales. On ",
            "that curve, today's loss exceedance curve ", describe_over(over_before),
-           ". With the three controls it ", describe_over(over_after), ".\n\n",
+           ". With the proposed controls it ", describe_over(over_after), ".\n\n",
            "![Loss exceedance vs. tolerance](figures/loss_exceedance_tolerance.png)\n")
 
 saveRDS(list(over_before = over_before, over_after = over_after),

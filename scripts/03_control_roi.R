@@ -4,7 +4,8 @@
 #     (thinning a Poisson process gives exactly Poisson(lambda * (1 - r_f)))
 #   - severity reduction r_s: surviving events cost (1 - r_s) as much
 # Both reductions are uncertain (triangular per simulated year).
-# ROSI = (ALE before - ALE after - annual cost) / annual cost.
+# ROSI = (ALE before - ALE after - annual cost) / annual cost, each control alone.
+# Controls on the same scenario compound when they are combined (for script 05).
 #
 # The second half asks a different question: given that we don't know the true
 # event rate or how well the control works, how sure are we that it pays off?
@@ -26,7 +27,8 @@ bootstrap_mean_ci <- function(v, B = 2000) {
 
 results <- lapply(seq_len(nrow(controls)), function(i) {
   ctl <- controls[i, ]
-  ev  <- events[events$scenario == ctl$scenario, ]
+  rows <- which(events$scenario == ctl$scenario)
+  ev  <- events[rows, ]
   r_f <- rtriangle(n_years, ctl$freq_red_min, ctl$freq_red_mode, ctl$freq_red_max)
   r_s <- rtriangle(n_years, ctl$sev_red_min, ctl$sev_red_mode, ctl$sev_red_max)
   yr  <- apply_control(ev, r_f, r_s, n_years)
@@ -45,7 +47,9 @@ results <- lapply(seq_len(nrow(controls)), function(i) {
       rosi = (mean(yr$avoided) - ctl$annual_cost) / ctl$annual_cost,
       p_year_pays_back = mean(yr$avoided > ctl$annual_cost)
     ),
-    avoided = data.frame(control = ctl$control, avoided = yr$avoided, cost = ctl$annual_cost)
+    avoided = data.frame(control = ctl$control, avoided = yr$avoided, cost = ctl$annual_cost),
+    rows = rows,
+    factor = attr(yr, "factor")
   )
 })
 roi <- do.call(rbind, lapply(results, `[[`, "row"))
@@ -53,9 +57,10 @@ write.csv(roi, "outputs/control_roi.csv", row.names = FALSE)
 print(roi)
 
 dist <- do.call(rbind, lapply(results, `[[`, "avoided"))
-# loss avoided per simulated year, one column per control, for script 05
-saveRDS(sapply(split(dist$avoided, factor(dist$control, levels = controls$control)), identity),
-        "outputs/control_avoided_by_year.rds")
+# loss avoided per simulated year by all controls together, for scripts 05 and 06
+saveRDS(combined_avoided(events, lapply(results, `[[`, "rows"), lapply(results, `[[`, "factor"),
+                         n_years),
+        "outputs/combined_avoided_by_year.rds")
 
 # the histogram leaves out years with nothing avoided, so give their count in each title
 zero_years <- tapply(dist$avoided == 0, dist$control, sum)
@@ -79,14 +84,15 @@ save_plot(p, "control_loss_avoided.png", 8, 7)
 # year given those, which has a closed form (R/model.R: control_uncertainty).
 # A second version holds lambda at its expected value, to show how much of the
 # uncertainty comes from the event rate rather than from the control itself.
+# EVPI: the most it would be worth paying to know the true inputs before buying.
 N_DRAWS <- 10000
 set.seed(2026)
 uncert <- lapply(seq_len(nrow(controls)), function(i) {
   ctl <- controls[i, ]
   s <- scenarios[scenarios$scenario == ctl$scenario, ]
   u <- control_uncertainty(ctl, s, N_DRAWS)
-  rosi_rate_known <- (lef_mean(s) *expected_event_loss(s) * (1 - (1 - u$r_f) * (1 - u$r_s)) -
-                        ctl$annual_cost) / ctl$annual_cost
+  rosi_rate_known <- (lef_mean(s) * u$m * expected_event_loss(s) *
+                        (1 - (1 - u$r_f) * (1 - u$r_s)) - ctl$annual_cost) / ctl$annual_cost
   list(
     row = data.frame(
       control = ctl$control,
@@ -96,7 +102,8 @@ uncert <- lapply(seq_len(nrow(controls)), function(i) {
       rosi_median = median(u$rosi),
       rosi_p95 = unname(quantile(u$rosi, 0.95)),
       p_rosi_negative = mean(u$rosi < 0),
-      p_rosi_negative_rate_known = mean(rosi_rate_known < 0)
+      p_rosi_negative_rate_known = mean(rosi_rate_known < 0),
+      evpi = evpi(u$avoided - ctl$annual_cost)
     ),
     draws = data.frame(control = ctl$control, rosi = u$rosi)
   )
@@ -104,6 +111,24 @@ uncert <- lapply(seq_len(nrow(controls)), function(i) {
 uncert_tbl <- do.call(rbind, lapply(uncert, `[[`, "row"))
 write.csv(uncert_tbl, "outputs/control_rosi_uncertainty.csv", row.names = FALSE)
 print(uncert_tbl)
+
+# ---- Severity uncertainty: what if loss sizes are uncertain too? ----------------------
+# Widen every scenario's loss interval by LOSS_UNCERTAINTY in the outer draws (90% of
+# multipliers between 1/1.5 and 1.5, mean 1), same seed as above.
+LOSS_UNCERTAINTY <- 1.5
+set.seed(2026)
+sev_tbl <- do.call(rbind, lapply(seq_len(nrow(controls)), function(i) {
+  ctl <- controls[i, ]
+  s <- scenarios[scenarios$scenario == ctl$scenario, ]
+  u <- control_uncertainty(ctl, transform(s, loss_uncertainty = LOSS_UNCERTAINTY), N_DRAWS)
+  data.frame(control = ctl$control, loss_uncertainty = LOSS_UNCERTAINTY,
+             rosi_p05 = unname(quantile(u$rosi, 0.05)),
+             rosi_p95 = unname(quantile(u$rosi, 0.95)),
+             p_rosi_negative = mean(u$rosi < 0),
+             evpi = evpi(u$avoided - ctl$annual_cost))
+}))
+write.csv(sev_tbl, "outputs/control_rosi_severity.csv", row.names = FALSE)
+print(sev_tbl)
 
 rosi_draws <- do.call(rbind, lapply(uncert, `[[`, "draws"))
 rosi_draws$control <- factor(rosi_draws$control, levels = controls$control)
@@ -150,6 +175,18 @@ mc_tbl <- data.frame(
     sprintf("%.1f%%", 100 * uncert_tbl$p_rosi_negative_rate_known),
   check.names = FALSE
 )
+sev_known <- all(vapply(seq_len(nrow(scenarios)),
+                        function(i) loss_uncertainty_of(scenarios[i, ]) == 1, logical(1)))
+voi_tbl <- data.frame(
+  Control = roi$control,
+  `P(ROSI < 0)` = sprintf("%.1f%%", 100 * uncert_tbl$p_rosi_negative),
+  `EVPI / yr` = dollars_sig(uncert_tbl$evpi, 2),
+  `P(ROSI < 0), wider losses` = sprintf("%.1f%%", 100 * sev_tbl$p_rosi_negative),
+  `ROSI 90% band, wider losses` = paste(pct(sev_tbl$rosi_p05), "to", pct(sev_tbl$rosi_p95)),
+  `EVPI / yr, wider losses` = dollars_sig(sev_tbl$evpi, 2),
+  check.names = FALSE
+)
+top <- which.max(uncert_tbl$evpi)
 report_add("## 3. Control ROI\n\n",
            paste(md_table(tbl), collapse = "\n"), "\n\n",
            "**Two kinds of uncertainty.** The expected ROSI averages over everything, ",
@@ -158,13 +195,26 @@ report_add("## 3. Control ROI\n\n",
            "once and held fixed (", format(N_DRAWS, big.mark = ","), " draws), and the ",
            "expected loss avoided is computed for each draw. P(ROSI < 0) is the chance that, ",
            "given what we don't know, the control costs more than it saves on average. ",
-           "Severity parameters are treated as known, so the bands are if anything too narrow.\n\n",
+           if (sev_known) "Loss sizes are treated as known here; the next table widens them.\n\n"
+           else "Loss sizes are uncertain as set by `loss_uncertainty` in `scenarios.csv`.\n\n",
            "*Years it pays back* is the share of simulated years in which the loss avoided ",
            "that year exceeds the control's cost. A control can have a strongly positive ",
            "expected ROSI and still \"lose money\" in most individual years, because its ",
            "value comes from the rare bad year. For EDR it is close to the share of years ",
            "with any ransomware event.\n\n",
            "![ROSI uncertainty](figures/control_rosi_uncertainty.png)\n\n",
+           "**Is it worth learning more before buying?** The expected value of perfect ",
+           "information (EVPI) is the most it would be worth paying, per year, to know the ",
+           "true event rate and effectiveness before deciding: the money lost on average in ",
+           "the draws where buying turns out to be the wrong call. The largest here is ",
+           dollars_sig(uncert_tbl$evpi[top], 2), " for ", roi$control[top], ", ",
+           sprintf("%.0f%%", 100 * uncert_tbl$evpi[top] / roi$annual_cost[top]),
+           " of its annual cost. The *wider losses* columns widen every scenario's 90% loss ",
+           "interval by a factor of ", LOSS_UNCERTAINTY, " in the outer draws (a lognormal ",
+           "multiplier with mean 1 and 90% of draws between 1/", LOSS_UNCERTAINTY, " and ",
+           LOSS_UNCERTAINTY, "; the `loss_uncertainty` column in `scenarios.csv` sets it per ",
+           "scenario). Expected ROSI does not change; only the spread grows.\n\n",
+           paste(md_table(voi_tbl), collapse = "\n"), "\n\n",
            "**Monte Carlo detail.** The interval below is a bootstrap over simulated years: ",
            "how far another seed would move the mean, not uncertainty about the control. ",
            "The last column holds the event rate at its expected value, so the remaining ",

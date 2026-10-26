@@ -7,10 +7,11 @@ for a hypothetical mid-size company; see the assumptions at the end.*
 
 - **Expected cyber loss: $1.20M a year.** In a bad year (1 in 20) it reaches $4.03M; in a very bad year (1 in 100), $7.58M.
 - Today's exposure is **outside** the stated risk tolerance for annual losses between about $1.5M and $8.7M. For example, the chance of losing more than $2.5M in a year is 12.2% against a tolerance of 10.0%.
-- With all three controls below, the curve comes back **within** tolerance.
+- With the controls below, the curve comes back **within** tolerance.
 - **Strongest case: Phishing-resistant MFA + payment call-back** (+184% expected return, 1.4% chance it loses money).
 - The other controls also pay off on average, but the chance that each costs more than it saves is about 14%, because we don't know how often those incidents happen.
-- Together the three cost $330k a year and cut expected loss by $628k a year.
+- Together they cost $330k a year and cut expected loss by $628k a year.
+- **Waiting for better estimates is not worth it:** perfect information about any control would be worth at most $4.0k a year, a small fraction of its cost.
 
 ![Loss exceedance vs. tolerance](figures/loss_exceedance_tolerance.png)
 
@@ -37,8 +38,8 @@ The range reflects what we don't know: how often each incident happens and how w
 ## Assumptions and limits
 
 > - Frequencies and loss ranges are **illustrative expert estimates**, not benchmarks.
-> - Scenarios are simulated as independent. A ransomware attack that is also a data breach would fatten the tail.
-> - The range for each control treats the size of a loss as known; it would widen otherwise.
+> - Scenarios are simulated as independent. If 30% of ransomware attacks also leaked customer data, the 1-in-100-year loss would rise from $7.58M to $7.79M.
+> - The range for each control treats the size of a loss as known. With loss sizes uncertain too (each 90% interval 1.5 times wider), the chance each control loses money becomes 3.3%–19%.
 > - Figures carry Monte Carlo error: the expected loss is ± $11k and the 1-in-100-year loss ± $160k.
 > - The risk tolerance curve is illustrative; the board would set its own.
 

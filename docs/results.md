@@ -69,6 +69,9 @@ Same seed, one choice changed at a time. Beta-PERT uses the same min / mode / ma
 | Beta-PERT frequency | $1.05M | $3.72M | $7.23M | 2.6% | $26.4M |
 | Single loss capped at $10M | $1.19M | $4.03M | $7.58M | 3.0% | $10.0M |
 | Beta-PERT and capped | $1.04M | $3.72M | $7.23M | 2.6% | $10.0M |
+| Double extortion: 30% of ransomware events also leak data | $1.20M | $4.18M | $7.79M | 3.4% | $31.2M |
+
+**Dependence.** The base model treats the scenarios as independent. In the double-extortion run, each ransomware event also causes a customer data breach with probability 0.3, and the standalone breach rate is lowered by the same expected number of events. Breach frequency is unchanged on average (breach ALE $381k in the base run, $376k here), so only the dependence changes: large breach losses now arrive in ransomware years. The 1-in-100-year loss moves from $7.58M to $7.79M.
 
 ## 3. Control ROI
 
@@ -78,11 +81,19 @@ Same seed, one choice changed at a time. Beta-PERT uses the same min / mode / ma
 | Phishing-resistant MFA + payment call-back | Business email compromise | $60,000 | $171k ($75.8k – $289k) | +184% (+26% to +382%) | 1.4% | 56% |
 | DLP + database encryption | Customer data breach | $120,000 | $205k ($91.0k – $356k) | +70% (-24% to +197%) | 14.1% | 27% |
 
-**Two kinds of uncertainty.** The expected ROSI averages over everything, including what we don't know. The 90% band and P(ROSI < 0) come from a two-level analysis: the long-run event rate and the control's effectiveness are drawn once and held fixed (10,000 draws), and the expected loss avoided is computed for each draw. P(ROSI < 0) is the chance that, given what we don't know, the control costs more than it saves on average. Severity parameters are treated as known, so the bands are if anything too narrow.
+**Two kinds of uncertainty.** The expected ROSI averages over everything, including what we don't know. The 90% band and P(ROSI < 0) come from a two-level analysis: the long-run event rate and the control's effectiveness are drawn once and held fixed (10,000 draws), and the expected loss avoided is computed for each draw. P(ROSI < 0) is the chance that, given what we don't know, the control costs more than it saves on average. Loss sizes are treated as known here; the next table widens them.
 
 *Years it pays back* is the share of simulated years in which the loss avoided that year exceeds the control's cost. A control can have a strongly positive expected ROSI and still "lose money" in most individual years, because its value comes from the rare bad year. For EDR it is close to the share of years with any ransomware event.
 
 ![ROSI uncertainty](figures/control_rosi_uncertainty.png)
+
+**Is it worth learning more before buying?** The expected value of perfect information (EVPI) is the most it would be worth paying, per year, to know the true event rate and effectiveness before deciding: the money lost on average in the draws where buying turns out to be the wrong call. The largest here is $4.0k for EDR + immutable backups, 3% of its annual cost. The *wider losses* columns widen every scenario's 90% loss interval by a factor of 1.5 in the outer draws (a lognormal multiplier with mean 1 and 90% of draws between 1/1.5 and 1.5; the `loss_uncertainty` column in `scenarios.csv` sets it per scenario). Expected ROSI does not change; only the spread grows.
+
+| Control | P(ROSI < 0) | EVPI / yr | P(ROSI < 0), wider losses | ROSI 90% band, wider losses | EVPI / yr, wider losses |
+|---|---|---|---|---|---|
+| EDR + immutable backups | 14.0% | $4.0k | 18.6% | -31% to +218% | $6.2k |
+| Phishing-resistant MFA + payment call-back | 1.4% | $98 | 3.3% | +11% to +429% | $320 |
+| DLP + database encryption | 14.1% | $3.4k | 18.3% | -34% to +223% | $5.2k |
 
 **Monte Carlo detail.** The interval below is a bootstrap over simulated years: how far another seed would move the mean, not uncertainty about the control. The last column holds the event rate at its expected value, so the remaining risk of losing money comes from the control's effectiveness alone.
 
@@ -108,6 +119,8 @@ With the event rate known, no control loses money even at the bottom of its effe
 
 Corrected sampler: acceptance rate 54%, effective sample size ≈ 4,133 of 19,000 post-burn-in draws. The original version keeps only accepted proposals and uses an uncorrected asymmetric proposal; compare its row with the exact answer.
 
+**Convergence.** Split R-hat over four chains (started at 0.05, 0.5, 2 and 5) is 1.000, and the Monte Carlo standard error of the posterior mean is 0.0048. The gap to the exact mean, +0.0002, is within two standard errors.
+
 ![MCMC](figures/mcmc_posterior.png)
 
 **Which bug does what.** Each variant run as 10 chains of 20,000 iterations, first 1,000 dropped; exact posterior mean 0.899.
@@ -120,11 +133,18 @@ Corrected sampler: acceptance rate 54%, effective sample size ≈ 4,133 of 19,00
 | Truncated proposal with Hastings correction, every iteration | 0.900 | 0.005 | +0.000 |
 | Both bugs (original 2022 sampler) | 0.931 | 0.005 | +0.032 |
 
+**Feeding the posterior into the simulation.** Script 02 draws the insider misuse rate from the analyst's min / mode / max. Here the rate is drawn from the posterior instead and the years are simulated again with the same seed. The data say incidents are 1.9 times as frequent as the analyst thought. The headline results keep the expert estimate, because the 8 incidents are part of an illustrative story; with real incident logs, this is the step that replaces a guess with evidence.
+
+| Frequency | Mean events / yr | Insider misuse ALE | Insider misuse P95 | Total ALE | Total P95 | Total P99 |
+|---|---|---|---|---|---|---|
+| Expert estimate: triangular(0.1, 0.3, 1) | 0.467 | $114k | $592k | $1.20M | $4.03M | $7.58M |
+| MCMC posterior: 8 incidents in 10 years | 0.899 | $219k | $945k | $1.31M | $4.20M | $7.64M |
+
 ## 5. Risk tolerance
 
 An illustrative risk appetite (`data/assumptions/tolerance.csv`), checked against the simulated total annual loss. ± is one binomial standard error in percentage points.
 
-| Annual loss over | Tolerated probability | Today | With the three controls |
+| Annual loss over | Tolerated probability | Today | With the proposed controls |
 |---|---|---|---|
 | $1.0M | 50.0% | 36.88% ± 0.34 within | 15.74% ± 0.26 within |
 | $2.5M | 10.0% | 12.22% ± 0.23 **exceeds** | 2.85% ± 0.12 within |
@@ -132,7 +152,7 @@ An illustrative risk appetite (`data/assumptions/tolerance.csv`), checked agains
 | $10M | 0.5% | 0.41% ± 0.05 within | 0.03% ± 0.01 within |
 | $20M | 0.1% | 0.03% ± 0.01 within | 0.00% ± 0.00 within |
 
-Between the stated points the tolerance is interpolated on log-log scales. On that curve, today's loss exceedance curve is above the tolerance curve for annual losses between about $1.5M and $8.7M. With the three controls it stays inside the tolerance curve everywhere it is defined.
+Between the stated points the tolerance is interpolated on log-log scales. On that curve, today's loss exceedance curve is above the tolerance curve for annual losses between about $1.5M and $8.7M. With the proposed controls it stays inside the tolerance curve everywhere it is defined.
 
 ![Loss exceedance vs. tolerance](figures/loss_exceedance_tolerance.png)
 

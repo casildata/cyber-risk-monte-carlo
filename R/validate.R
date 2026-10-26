@@ -33,6 +33,10 @@ validate_inputs <- function(scenarios, controls = NULL, tolerance = NULL) {
       check(is.na(s$loss_cap) | s$loss_cap > s$loss_p95,
             "scenarios.csv: loss_cap must be blank or above loss_p95", s$scenario)
     }
+    if ("loss_uncertainty" %in% names(s)) {
+      check(is.na(s$loss_uncertainty) | s$loss_uncertainty >= 1,
+            "scenarios.csv: loss_uncertainty must be blank or >= 1", s$scenario)
+    }
   }
 
   if (!is.null(controls) &&
@@ -42,11 +46,7 @@ validate_inputs <- function(scenarios, controls = NULL, tolerance = NULL) {
     k <- controls
     check(k$scenario %in% scenarios$scenario,
           "controls.csv: scenario not found in scenarios.csv", paste0(k$control, " -> ", k$scenario))
-    # each control's loss avoided is measured against the untreated loss, so two
-    # controls on one scenario would be subtracted twice
-    check(!duplicated(k$scenario),
-          "controls.csv: one control per scenario (combined controls are not modeled yet)",
-          paste0(k$control, " -> ", k$scenario))
+    check(!duplicated(k$control), "controls.csv: duplicate control name", k$control)
     for (p in c("freq_red", "sev_red")) {
       lo <- k[[paste0(p, "_min")]]
       md <- k[[paste0(p, "_mode")]]

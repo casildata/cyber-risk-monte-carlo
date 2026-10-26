@@ -7,6 +7,9 @@ roi         <- read.csv("outputs/control_roi.csv")
 uncert      <- read.csv("outputs/control_rosi_uncertainty.csv")
 tol         <- read.csv("outputs/tolerance_check.csv")
 overlap     <- readRDS("outputs/tolerance_overlap.rds")
+combined    <- readRDS("outputs/combined_avoided_by_year.rds")
+sens        <- read.csv("outputs/sensitivity.csv")
+sev         <- read.csv("outputs/control_rosi_severity.csv")
 
 total <- summary_tbl[summary_tbl$scenario == "Total", ]
 total_se <- se_tbl[se_tbl$scenario == "Total", ]
@@ -40,9 +43,9 @@ tolerance_line <- if (nrow(breaches) == 0) {
          pct(breaches$max_probability[1], 1), ".")
 }
 after_line <- if (is.na(overlap$over_after[1])) {
-  "With all three controls below, the curve comes back **within** tolerance."
+  "With the controls below, the curve comes back **within** tolerance."
 } else {
-  paste0("Even with all three controls, the curve stays outside tolerance between about ",
+  paste0("Even with the proposed controls, the curve stays outside tolerance between about ",
          dollars_sig(overlap$over_after[1], 2), " and ", dollars_sig(overlap$over_after[2], 2), ".")
 }
 
@@ -82,8 +85,12 @@ brief <- c(
            "more than it saves is ", pct_span(ctl$p_rosi_negative[-1]),
            if (rate_drives_it) ", because we don't know how often those incidents happen" else "",
            "."),
-  paste0("- Together the three cost ", dollars_sig(sum(roi$annual_cost)), " a year and cut ",
-         "expected loss by ", dollars_sig(sum(roi$avoided_mean)), " a year."),
+  paste0("- Together they cost ", dollars_sig(sum(roi$annual_cost)), " a year and cut ",
+         "expected loss by ", dollars_sig(mean(combined)), " a year."),
+  if (all(ctl$rosi > 0) && max(ctl$evpi / ctl$annual_cost) < 0.1)
+    paste0("- **Waiting for better estimates is not worth it:** perfect information about ",
+           "any control would be worth at most ", dollars_sig(max(ctl$evpi), 2),
+           " a year, a small fraction of its cost."),
   "",
   "![Loss exceedance vs. tolerance](figures/loss_exceedance_tolerance.png)",
   "",
@@ -104,8 +111,14 @@ brief <- c(
   "## Assumptions and limits",
   "",
   "> - Frequencies and loss ranges are **illustrative expert estimates**, not benchmarks.",
-  "> - Scenarios are simulated as independent. A ransomware attack that is also a data breach would fatten the tail.",
-  "> - The range for each control treats the size of a loss as known; it would widen otherwise.",
+  if (any(sens$p_ext > 0))
+    paste0("> - Scenarios are simulated as independent. If ", pct(sens$p_ext[sens$p_ext > 0]),
+           " of ransomware attacks also leaked customer data, the 1-in-100-year loss would ",
+           "rise from ", dollars_sig(sens$p99[1]), " to ", dollars_sig(sens$p99[sens$p_ext > 0]), ".")
+  else "> - Scenarios are simulated as independent.",
+  paste0("> - The range for each control treats the size of a loss as known. With loss sizes ",
+         "uncertain too (each 90% interval ", sev$loss_uncertainty[1], " times wider), the chance ",
+         "each control loses money becomes ", pct_span(sev$p_rosi_negative), "."),
   paste0("> - Figures carry Monte Carlo error: the expected loss is ± ", dollars_sig(total_se$se_mean, 2),
          " and the 1-in-100-year loss ± ", dollars_sig(total_se$se_p99, 2), "."),
   "> - The risk tolerance curve is illustrative; the board would set its own.",

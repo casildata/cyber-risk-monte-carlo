@@ -20,3 +20,20 @@ test_that("a correct sampler stores one draw per iteration; accepted-only stores
   expect_length(mh_log_walk(500, 1, 0.6, log_target)$draws, 500)
   expect_lt(length(mh_log_walk(500, 1, 0.6, log_target, accepted_only = TRUE)$draws), 500)
 })
+
+test_that("split R-hat is near 1 for agreeing chains and flags chains that disagree", {
+  set.seed(4)
+  same <- matrix(rnorm(4000), ncol = 4)
+  expect_lt(split_rhat(same), 1.01)
+  apart <- same + rep(c(0, 0, 0, 2), each = 1000)
+  expect_gt(split_rhat(apart), 1.1)
+  # a chain that drifts is caught by splitting it in half
+  drift <- cbind(same[, 1:3], seq(-3, 3, length.out = 1000))
+  expect_gt(split_rhat(drift), 1.05)
+})
+
+test_that("MCSE of independent draws is sd / sqrt(n)", {
+  set.seed(5)
+  x <- rnorm(10000)
+  expect_equal(mcse_mean(x), sd(x) / 100, tolerance = 0.1)
+})

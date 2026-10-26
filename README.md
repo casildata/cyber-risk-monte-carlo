@@ -23,8 +23,8 @@ The question a CISO gets from the board: *"How much could we lose to cyber incid
 | **P(annual loss > $5M)** | **3.0%** |
 | **Risk tolerance** | Outside an illustrative appetite for annual losses of about $1.5M–$8.7M: P(loss > $2.5M) is **12.2%** against 10% tolerated. The three controls bring the curve back inside. |
 | **Best control by ROSI** | Phishing-resistant MFA + payment call-back: **+184%** expected, **1.4%** chance it loses money |
-| **Ransomware control** | EDR + immutable backups: **+69%** expected, but a **14%** chance it loses money, almost entirely because ransomware frequency is uncertain. It pays back in only 17% of years, because its value is the rare bad year. |
-| **Bayesian rate check** | Corrected Metropolis-Hastings matches the exact posterior mean (0.899); the original 2022 sampler was biased (0.934), almost entirely from a missing Hastings correction |
+| **Ransomware control** | EDR + immutable backups: **+69%** expected, but a **14%** chance it loses money, almost entirely because ransomware frequency is uncertain. Perfect information would be worth only about **$4k a year** (3% of its cost), so buy it rather than wait for better estimates. It pays back in only 17% of years, because its value is the rare bad year. |
+| **Bayesian rate check** | Corrected Metropolis-Hastings matches the exact posterior mean (0.899, split R̂ 1.000); the original 2022 sampler was biased (0.934), almost entirely from a missing Hastings correction. Fed into the simulation, the posterior says insider misuse is 1.9 times as frequent as the analyst's estimate |
 
 ± is one Monte Carlo standard error (bootstrap over simulated years): how far another random seed could move the figure. It says nothing about whether the inputs are right.
 
@@ -55,17 +55,17 @@ flowchart LR
     F -.->|checks Poisson choice| B
     F -.->|checks lognormal choice| C
     P["8 incidents / 10 yrs"] --> M["Metropolis-Hastings<br/>posterior for λ"]
-    M -.->|roadmap: replace triangular λ| B
+    M -.->|sensitivity run: posterior λ| B
 ```
 
-Solid arrows are the simulation. Dashed arrows are checks: input analysis tests whether the distribution families are reasonable, and the MCMC posterior does not yet feed the simulation (see [Roadmap](#roadmap)).
+Solid arrows are the simulation. Dashed arrows are checks: input analysis tests whether the distribution families are reasonable, and the MCMC posterior replaces the insider-misuse estimate in a separate run, while the headline results keep the analyst's estimate.
 
 | Step | Script | Technique |
 |---|---|---|
 | 1. Input analysis | [`01_input_analysis.R`](scripts/01_input_analysis.R) | Fit Poisson vs. negative binomial to monthly counts (AIC, χ² goodness of fit, dispersion); fit lognormal, gamma, Weibull and exponential to past losses (MLE, AIC, Kolmogorov-Smirnov, Q-Q plot) |
-| 2. Annual loss | [`02_simulate_annual_loss.R`](scripts/02_simulate_annual_loss.R) | Input validation; compound Poisson-lognormal per scenario with uncertain frequency; loss exceedance curve; ALE, P90/P95/P99 with bootstrap Monte Carlo standard errors |
-| 3. Control ROI | [`03_control_roi.R`](scripts/03_control_roi.R) | Controls thin the same simulated events (common random numbers); expected ROSI; two-level uncertainty for a 90% band and P(ROSI < 0) |
-| 4. Bayesian rate | [`04_bayesian_frequency.R`](scripts/04_bayesian_frequency.R) | Random-walk Metropolis-Hastings on log λ, burn-in, acceptance rate, effective sample size, validated against the exact Gamma posterior; each bug in the original sampler isolated over 10 chains |
+| 2. Annual loss | [`02_simulate_annual_loss.R`](scripts/02_simulate_annual_loss.R) | Input validation; compound Poisson-lognormal per scenario with uncertain frequency; loss exceedance curve; ALE, P90/P95/P99 with bootstrap Monte Carlo standard errors; sensitivity to the frequency distribution, a loss cap and double-extortion dependence |
+| 3. Control ROI | [`03_control_roi.R`](scripts/03_control_roi.R) | Controls thin the same simulated events (common random numbers) and compound when several act on one scenario; expected ROSI; two-level uncertainty for a 90% band and P(ROSI < 0); expected value of perfect information; severity uncertainty |
+| 4. Bayesian rate | [`04_bayesian_frequency.R`](scripts/04_bayesian_frequency.R) | Random-walk Metropolis-Hastings on log λ, burn-in, acceptance rate, effective sample size, split R̂ and MCSE, validated against the exact Gamma posterior; each bug in the original sampler isolated over 10 chains; posterior fed back into the simulation |
 | 5. Risk tolerance | [`05_risk_tolerance.R`](scripts/05_risk_tolerance.R) | Loss exceedance curve vs. a tolerance curve on log-probability scales, before and after the controls |
 | 6. Board brief | [`06_board_brief.R`](scripts/06_board_brief.R) | One-page summary built from the tables above |
 
@@ -99,9 +99,11 @@ Ransomware has a median of $0 yet the highest 1-in-20 loss. Ranking risks by "ho
 | Base: triangular frequency, uncapped | $1.20M | $4.03M | $7.58M | $31.2M |
 | Beta-PERT frequency | $1.05M | $3.72M | $7.23M | $26.4M |
 | Single loss capped at $10M | $1.19M | $4.03M | $7.58M | $10.0M |
+| Double extortion: 30% of ransomware events also leak data | $1.20M | $4.18M | $7.79M | $31.2M |
 
 - **Beta-PERT** (the usual FAIR choice) puts less weight near the extremes of the min / mode / max estimate. Every mode here sits below the midpoint of its range, so PERT lowers the expected event rate and the ALE drops 13%. The choice of distribution moves results more than the Monte Carlo error does.
 - **A $10M cap barely matters up to the 1-in-100 year.** Uncapped, one simulated event costs $31.2M, implausible for a mid-size company. But P95 and P99 sit below $10M, so capping single losses there can't move them; it trims the ALE by about 1% and shortens only the extreme tail. A cap near the P95 would matter. Either choice can be set per scenario with the optional `lef_dist` and `loss_cap` columns.
+- **Dependence is modeled directly, not with a copula.** In the double-extortion run, each ransomware event also causes a data-breach loss with probability 0.3, and the standalone breach rate is lowered by the same expected number of events. Breach frequency is unchanged on average (breach ALE $381k vs. $376k), so only the timing changes: large breach losses now arrive in ransomware years. The 1-in-20 loss rises from $4.03M to $4.18M and the 1-in-100 from $7.58M to $7.79M.
 
 ### Control return on security investment
 
@@ -119,7 +121,18 @@ Ransomware has a median of $0 yet the highest 1-in-20 loss. Ranking risks by "ho
 
 - **MFA is the safe bet:** even at the 5th percentile it returns +26%.
 - **EDR and DLP pay off on average, but each has about a 1-in-7 chance of losing money.**
-- **Not knowing the event rate drives all of that risk.** With the rate fixed at its expected value, no control loses money even at the bottom of its effectiveness range. A better frequency estimate is worth more here than a better effectiveness estimate. Severity is treated as known, so the true bands are wider still.
+- **Not knowing the event rate drives all of that risk.** With the rate fixed at its expected value, no control loses money even at the bottom of its effectiveness range. A better frequency estimate is worth more here than a better effectiveness estimate.
+
+**Is it worth learning more before buying?** The expected value of perfect information (EVPI) is the most it would be worth paying, per year, to know the true inputs before deciding. The *wider losses* columns add uncertainty about loss size: each scenario's 90% loss interval is widened by a factor of 1.5 in the outer draws (a lognormal multiplier with mean 1), which the optional `loss_uncertainty` column sets per scenario.
+
+| Control | P(ROSI < 0) | EVPI / yr | P(ROSI < 0), wider losses | ROSI 90% band, wider losses | EVPI / yr, wider losses |
+|---|---|---|---|---|---|
+| EDR + immutable backups | about 14% | $4.0k | about 19% | −31% to +218% | $6.2k |
+| Phishing-resistant MFA + payment call-back | 1.4% | $98 | 3.3% | +11% to +429% | $320 |
+| DLP + database encryption | about 14% | $3.4k | about 18% | −34% to +223% | $5.2k |
+
+- **A 1-in-7 chance of losing money doesn't mean "wait".** Even for EDR, resolving every uncertainty would be worth at most about $4k a year, 3% of what the control costs, so a better estimate would rarely change the decision.
+- **Uncertain loss sizes widen the bands but don't move the expected ROSI.** EDR's chance of losing money goes from about 14% to about 19%.
 
 The Monte Carlo 95% CI for each mean, which measures only simulation noise, is in [`docs/results.md`](docs/results.md).
 
@@ -161,6 +174,17 @@ The original 2022 sampler had two bugs: it stored only *accepted* proposals, and
 - **The truncated proposal itself was fine.** With the correction it is unbiased. Switching to a log-scale random walk is a cleaner fix, not the only one.
 - **Storing only accepted proposals is still wrong, but smaller here,** and it pulls the other way. Rejections repeat the current state, and dropping them under-weights the states where the chain lingers.
 
+**Convergence.** Split R̂ over four chains started at 0.05, 0.5, 2 and 5 is 1.000, and the Monte Carlo standard error of the posterior mean is 0.005.
+
+**From posterior to loss.** Script 04 then replaces the analyst's insider-misuse estimate (0.1 / 0.3 / 1.0 events a year, mean 0.47) with draws from the posterior (mean 0.90) and simulates again with the same seed:
+
+| Insider-misuse frequency | Insider-misuse ALE | Insider-misuse P95 | Total ALE | Total P99 |
+|---|---|---|---|---|
+| Analyst's estimate | $114k | $592k | $1.20M | $7.58M |
+| MCMC posterior (8 incidents in 10 years) | $219k | $945k | $1.31M | $7.64M |
+
+The evidence nearly doubles this scenario's expected loss but barely moves the total tail, which ransomware and breaches drive. The headline results keep the analyst's estimate because the eight incidents are part of an illustrative story; with real incident logs, this is where evidence replaces a guess.
+
 ## Framework mapping
 
 ### FAIR
@@ -172,8 +196,8 @@ The model follows the [FAIR](https://www.fairinstitute.org/) structure at its to
 | Loss Event Frequency (LEF) | `lef_min` / `lef_mode` / `lef_max` → triangular λ, then Poisson event counts | Estimated directly, not built up from Threat Event Frequency × Vulnerability |
 | Loss Magnitude (LM) | `loss_p05` / `loss_p95` → lognormal loss per event | One distribution per event, with no primary/secondary loss split |
 | Annualized loss exposure | Mean simulated annual loss (ALE) | |
-| Loss exceedance curve | P(annual loss > x) over 20,000 simulated years | Scenarios are independent; a copula is on the roadmap |
-| Control effect | `freq_red_*` reduces LEF by thinning, `sev_red_*` reduces LM | Each control acts on one scenario, and validation rejects a second control on the same scenario; no control interactions |
+| Loss exceedance curve | P(annual loss > x) over 20,000 simulated years | Scenarios are independent in the base run; double extortion (ransomware that also leaks data) is a sensitivity run |
+| Control effect | `freq_red_*` reduces LEF by thinning, `sev_red_*` reduces LM | Each control acts on one scenario; several controls on the same scenario compound per event, with no other interactions |
 
 ### NIST CSF 2.0
 
@@ -230,7 +254,7 @@ To model your own organization, edit `scenarios.csv`, `controls.csv` and `tolera
 
 ### Output
 
-About 20 seconds. Edits to the assumption files are validated first: a typo such as `lef_mode` outside `lef_min`–`lef_max`, a reduction above 100%, a control pointing at a missing scenario or two controls on one scenario stops the run with a message that names the row. The report goes to `docs/results.md`, the board brief to `docs/board-brief.md` and the figures to `docs/figures/`; intermediate tables go to `outputs/` (git-ignored).
+About 20 seconds. Edits to the assumption files are validated first: a typo such as `lef_mode` outside `lef_min`–`lef_max`, a reduction above 100%, a control pointing at a missing scenario or a repeated control name stops the run with a message that names the row. The report goes to `docs/results.md`, the board brief to `docs/board-brief.md` and the figures to `docs/figures/`; intermediate tables go to `outputs/` (git-ignored).
 
 `outputs/annual_loss_by_year.csv.gz` holds the loss for every simulated year and scenario, for downstream use such as optimizing a control budget against the tail rather than the mean. The same file is attached to the [v1.0 release](https://github.com/casildata/cyber-risk-monte-carlo/releases/tag/v1.0).
 
@@ -238,7 +262,7 @@ About 20 seconds. Edits to the assumption files are validated first: a typo such
 
 ### Tests and CI
 
-The unit tests check the samplers against their closed forms (triangular and PERT means, simulated ALE vs. the exact compound-Poisson mean, the capped-lognormal mean, the two-level average), the control logic (a control that does nothing avoids nothing; a perfect one avoids everything; trailing years without events are kept), input validation and the MCMC samplers. [GitHub Actions](.github/workflows/pipeline.yml) runs the tests and the full pipeline on every push, fails if any number in `docs/results.md` or `docs/board-brief.md` changes, and scans the history for secrets with gitleaks.
+The unit tests check the samplers against their closed forms (triangular and PERT means, simulated ALE vs. the exact compound-Poisson mean, the capped-lognormal mean, the two-level average, with and without severity uncertainty), the control logic (a control that does nothing avoids nothing; a perfect one avoids everything; two controls on one scenario compound instead of adding up; trailing years without events are kept), EVPI, double extortion keeping the breach frequency, input validation, the MCMC samplers and split R̂. [GitHub Actions](.github/workflows/pipeline.yml) runs the tests and the full pipeline on every push, fails if any number in `docs/results.md` or `docs/board-brief.md` changes, and scans the history for secrets with gitleaks.
 
 ## Repository structure
 
@@ -274,9 +298,7 @@ cyber-risk-monte-carlo/
 
 - Replace the illustrative inputs with estimates calibrated against public sources (e.g., industry breach-cost and incident-frequency reports) and cite them.
 - Optimize the control budget against the tail (e.g. CVaR) using the year-by-year losses in the v1.0 release.
-- Add severity uncertainty to the two-level analysis, so the ROSI bands cover all three inputs.
-- Model correlated scenarios (e.g., a breach that follows a ransomware event) with a copula.
-- Feed the MCMC posterior for λ straight into the frequency step instead of the triangular estimate.
+- Split loss event frequency into threat event frequency × vulnerability, and loss into primary and secondary, so controls read in FAIR-CAM terms.
 - Shiny front end so a non-technical user can edit assumptions and see the curve update.
 
 ## Data & citations

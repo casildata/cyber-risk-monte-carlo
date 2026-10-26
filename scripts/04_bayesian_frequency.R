@@ -91,6 +91,46 @@ bugs <- data.frame(
 write.csv(bugs, "outputs/mcmc_bug_isolation.csv", row.names = FALSE)
 print(bugs)
 
+# ---- Convergence ------------------------------------------------------------------------
+# Three more chains of the corrected sampler from spread-out starting points, next to
+# the headline chain (started at 5), all after burn-in.
+INITS <- c(0.05, 0.5, 2)
+chains <- cbind(post, sapply(INITS, function(x0) {
+  mh_log_walk(N_ITER, x0, 0.6, log_target)$draws[-seq_len(BURN)]
+}))
+rhat <- split_rhat(chains)
+mcse <- mcse_mean(post)
+cat(sprintf("split R-hat %.4f, MCSE of the posterior mean %.4f\n", rhat, mcse))
+
+# ---- Feed the posterior into the simulation ---------------------------------------------
+# Replace the expert estimate of the insider-misuse rate with draws from the posterior
+# and re-simulate with script 02's seed. Scenarios listed before it in scenarios.csv
+# draw the same numbers, so the change comes from the insider-misuse rate.
+STORY <- "Insider misuse"
+scenarios <- read.csv("data/assumptions/scenarios.csv")
+events <- readRDS("outputs/events.rds")
+feed <- NULL
+if (STORY %in% scenarios$scenario) {
+  set.seed(1234)
+  ev_post <- simulate_events(scenarios, attr(events, "n_years"),
+                             lambda_draws = setNames(list(post), STORY))
+  feed_row <- function(label, rate, ev) {
+    ann <- annual_losses(ev, scenarios)
+    tot <- rowSums(ann)
+    data.frame(frequency = label, mean_rate = rate, story_ale = mean(ann[, STORY]),
+               story_p95 = unname(quantile(ann[, STORY], 0.95)), total_ale = mean(tot),
+               total_p95 = unname(quantile(tot, 0.95)), total_p99 = unname(quantile(tot, 0.99)))
+  }
+  s <- scenarios[scenarios$scenario == STORY, ]
+  feed <- rbind(
+    feed_row(sprintf("Expert estimate: triangular(%s, %s, %s)", s$lef_min, s$lef_mode, s$lef_max),
+             lef_mean(s), events),
+    feed_row("MCMC posterior: 8 incidents in 10 years", mean(post), ev_post)
+  )
+  write.csv(feed, "outputs/posterior_frequency.csv", row.names = FALSE)
+  print(feed)
+}
+
 report_add("## 4. Bayesian incident rate (Metropolis-Hastings)\n\n",
            "8 insider-misuse incidents in 10 years with a near-flat prior gives an exact Gamma(9, 10.01) ",
            "posterior, which makes a good test for the sampler.\n\n",
@@ -101,9 +141,33 @@ report_add("## 4. Bayesian incident rate (Metropolis-Hastings)\n\n",
                    format(length(post), big.mark = ",")),
            "post-burn-in draws. The original version keeps only accepted proposals and uses an ",
            "uncorrected asymmetric proposal; compare its row with the exact answer.\n\n",
+           sprintf(paste0("**Convergence.** Split R-hat over four chains (started at %s and 5) ",
+                          "is %.3f, and the Monte Carlo standard error of the posterior mean ",
+                          "is %.4f. The gap to the exact mean, %+.4f, is %s.\n\n"),
+                   paste(INITS, collapse = ", "), rhat, mcse, mean(post) - SHAPE / RATE,
+                   if (abs(mean(post) - SHAPE / RATE) < 2 * mcse) "within two standard errors"
+                   else "more than two standard errors"),
            "![MCMC](figures/mcmc_posterior.png)\n\n",
            sprintf("**Which bug does what.** Each variant run as %d chains of %s iterations, ",
                    N_CHAINS, format(N_ITER, big.mark = ",")),
            sprintf("first %s dropped; exact posterior mean %.3f.\n\n",
                    format(BURN, big.mark = ","), SHAPE / RATE),
-           paste(md_table(bugs), collapse = "\n"), "\n")
+           paste(md_table(bugs), collapse = "\n"), "\n",
+           if (!is.null(feed))
+             paste0("\n**Feeding the posterior into the simulation.** Script 02 draws the ",
+                    tolower(STORY), " rate from the analyst's min / mode / max. Here the rate is drawn ",
+                    "from the posterior instead and the years are simulated again with the ",
+                    "same seed. The data say incidents are ",
+                    sprintf("%.1f", feed$mean_rate[2] / feed$mean_rate[1]),
+                    " times as frequent as the analyst thought. The headline results keep the ",
+                    "expert estimate, because the 8 incidents are part of an illustrative ",
+                    "story; with real incident logs, this is the step that replaces a guess ",
+                    "with evidence.\n\n",
+                    paste(md_table(setNames(data.frame(
+                      feed$frequency, sprintf("%.3f", feed$mean_rate),
+                      dollars_sig(feed$story_ale), dollars_sig(feed$story_p95),
+                      dollars_sig(feed$total_ale), dollars_sig(feed$total_p95),
+                      dollars_sig(feed$total_p99)),
+                      c("Frequency", "Mean events / yr", paste(STORY, "ALE"),
+                        paste(STORY, "P95"), "Total ALE", "Total P95", "Total P99"))),
+                      collapse = "\n"), "\n"))

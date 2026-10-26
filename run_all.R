@@ -1,6 +1,7 @@
 # Reproduce every table and figure from the repository root:
 #   Rscript run_all.R
-# Packages: listed in r-packages.txt; missing ones are installed on first run.
+# Packages: listed in r-packages.txt; if any is missing, the run stops with the
+# install command (nothing is installed automatically).
 
 source("R/check_packages.R")
 source("R/distributions.R")

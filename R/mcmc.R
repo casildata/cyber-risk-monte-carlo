@@ -64,3 +64,17 @@ effective_sample_size <- function(x, max_lag = 200) {
   if (is.na(cut)) cut <- length(rho)
   length(x) / (1 + 2 * sum(rho[seq_len(cut - 1)]))
 }
+
+# Split R-hat (Gelman et al.): each chain (a column of `chains`) is cut in half and
+# the between-half variance compared with the within-half variance. Close to 1
+# (below about 1.01) when the chains agree.
+split_rhat <- function(chains) {
+  n <- nrow(chains) %/% 2
+  halves <- cbind(chains[seq_len(n), , drop = FALSE], chains[n + seq_len(n), , drop = FALSE])
+  w <- mean(apply(halves, 2, var))
+  b <- n * var(colMeans(halves))
+  sqrt(((n - 1) / n * w + b / n) / w)
+}
+
+# Monte Carlo standard error of a posterior mean: sd / sqrt(effective sample size).
+mcse_mean <- function(x) sd(x) / sqrt(effective_sample_size(x))
