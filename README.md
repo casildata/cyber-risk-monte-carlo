@@ -25,6 +25,7 @@ The question a CISO gets from the board: *"How much could we lose to cyber incid
 | **Best control by ROSI** | Phishing-resistant MFA + payment call-back: **+184%** expected, **1.4%** chance it loses money |
 | **Ransomware control** | EDR + immutable backups: **+69%** expected, but a **14%** chance it loses money, almost entirely because ransomware frequency is uncertain. Perfect information would be worth only about **$4k a year** (3% of its cost), so buy it rather than wait for better estimates. It pays back in only 17% of years, because its value is the rare bad year. |
 | **Bayesian rate check** | Corrected Metropolis-Hastings matches the exact posterior mean (0.899, split R̂ 1.000); the original 2022 sampler was biased (0.934), almost entirely from a missing Hastings correction. Fed into the simulation, the posterior says insider misuse is 1.9 times as frequent as the analyst's estimate |
+| **Calibrated inputs** | Re-sized from Cyentia IRIS 2025, insurer claims data and FBI IC3 for a $500M critical-infrastructure operator: expected loss **$503k** a year instead of $1.20M, but a heavier far tail (P(loss > $20M) **0.21%** against 0.1% tolerated). The three controls together pull that tail back inside tolerance, but on expected value only EDR comes close to paying for itself (−1%); MFA and DLP return −73% |
 
 ± is one Monte Carlo standard error (bootstrap over simulated years): how far another random seed could move the figure. It says nothing about whether the inputs are right.
 
@@ -32,7 +33,7 @@ The question a CISO gets from the board: *"How much could we lose to cyber incid
 
 ![Loss exceedance vs. risk tolerance, log scales](docs/figures/loss_exceedance_tolerance.png)
 
-> **Data note:** the scenario and control inputs in [`data/assumptions/`](data/assumptions/) are **illustrative assumptions for a hypothetical mid-size company**, not benchmarks. The "historical" records used for input analysis are synthetic. The method is the deliverable.
+> **Data note:** the headline results use **illustrative assumptions for a hypothetical mid-size company** ([`data/assumptions/`](data/assumptions/)), not benchmarks. A second scenario file sizes three of the five scenarios from cited public sources ([`docs/calibration.md`](docs/calibration.md)); control costs and the risk tolerance stay illustrative in both. The "historical" records used for input analysis are synthetic.
 
 ---
 
@@ -56,6 +57,7 @@ flowchart LR
     F -.->|checks lognormal choice| C
     P["8 incidents / 10 yrs"] --> M["Metropolis-Hastings<br/>posterior for λ"]
     M -.->|sensitivity run: posterior λ| B
+    S["Public sources<br/>IRIS · insurer claims · FBI IC3"] -.->|calibrated run| A
 ```
 
 Solid arrows are the simulation. Dashed arrows are checks: input analysis tests whether the distribution families are reasonable, and the MCMC posterior replaces the insider-misuse estimate in a separate run, while the headline results keep the analyst's estimate.
@@ -67,7 +69,8 @@ Solid arrows are the simulation. Dashed arrows are checks: input analysis tests 
 | 3. Control ROI | [`03_control_roi.R`](scripts/03_control_roi.R) | Controls thin the same simulated events (common random numbers) and compound when several act on one scenario; expected ROSI; two-level uncertainty for a 90% band and P(ROSI < 0); expected value of perfect information; severity uncertainty |
 | 4. Bayesian rate | [`04_bayesian_frequency.R`](scripts/04_bayesian_frequency.R) | Random-walk Metropolis-Hastings on log λ, burn-in, acceptance rate, effective sample size, split R̂ and MCSE, validated against the exact Gamma posterior; each bug in the original sampler isolated over 10 chains; posterior fed back into the simulation |
 | 5. Risk tolerance | [`05_risk_tolerance.R`](scripts/05_risk_tolerance.R) | Loss exceedance curve vs. a tolerance curve on log-probability scales, before and after the controls |
-| 6. Board brief | [`06_board_brief.R`](scripts/06_board_brief.R) | One-page summary built from the tables above |
+| 6. Calibrated inputs | [`06_calibrated_inputs.R`](scripts/06_calibrated_inputs.R) | The same model on inputs sized from public sources, size-adjusted with IRIS revenue-tier statistics; both loss exceedance curves against the tolerance; control ROSI under sourced inputs |
+| 7. Board brief | [`07_board_brief.R`](scripts/07_board_brief.R) | One-page summary built from the tables above |
 
 The model itself (event simulation, controls, two-level draws) is in [`R/model.R`](R/model.R) and the samplers in [`R/mcmc.R`](R/mcmc.R), both covered by unit tests.
 
@@ -151,6 +154,26 @@ The Monte Carlo 95% CI for each mean, which measures only simulation noise, is i
 The figure at the top of this page plots this table on log-probability scales.
 
 Today's curve is above tolerance for annual losses between about $1.5M and $8.7M: the middle of the tail, not the extreme end. The upper end rests on few simulated years and moves between about $8.4M and $9.4M with the seed. With the three controls it is inside everywhere. On log-probability scales the far tail is visibly a staircase: below about 0.05%, each step is one or two simulated years.
+
+### Calibrated inputs
+
+[`scenarios_calibrated.csv`](data/assumptions/scenarios_calibrated.csv) re-sizes the scenarios for one profile, a mid-size US critical-infrastructure operator (about $500M revenue), from public sources: Cyentia IRIS 2025 for incident likelihood and losses, Coalition's cyber insurance claims for frequency at $100M+ revenue, and FBI IC3 2025 for business email compromise losses. IRIS's revenue-tier statistics scale the all-size loss figures down to this tier (median ×0.77, log-spread ×0.82). Every row names its sources and a confidence level; [`docs/calibration.md`](docs/calibration.md) shows the arithmetic. DDoS and insider misuse have no usable public figures at this size and keep their illustrative values.
+
+| Scenario | Confidence | ALE, illustrative | ALE, calibrated | P95, illustrative | P95, calibrated |
+|---|---|---|---|---|---|
+| Ransomware | medium | $338k | $175k | $2.15M | $0 |
+| Business email compromise | low | $239k | $24.4k | $827k | $139k |
+| Customer data breach | low | $381k | $56.2k | $2.00M | $0 |
+| DDoS outage | not calibrated | $132k | $132k | $401k | $402k |
+| Insider misuse | not calibrated | $114k | $114k | $592k | $579k |
+| **Total** | | **$1.20M** | **$503k** | **$4.03M** | **$1.42M** |
+
+![Illustrative vs. calibrated loss exceedance curves against the risk tolerance](docs/figures/loss_exceedance_calibrated.png)
+
+- **The analyst's estimates were too frequent and too thin-tailed.** Sourced frequencies are far lower (ransomware about 0.03 events a year instead of 0.2; wire fraud 0.19 instead of 2), so a typical year costs less. But IRIS's ransomware losses run to a $24M 95th percentile per event, so the curves cross near $9M and the calibrated tail is heavier: P(loss > $20M) is 0.21% ± 0.03 against 0.1% tolerated. At $10M (0.54% ± 0.05 against 0.5%) the breach is within noise.
+- **The control decision changes.** Under sourced inputs, EDR + immutable backups returns −1% on average (56% chance it loses money), and MFA and DLP return −73% with no draw paying back. The three together still bring the calibrated tail back inside tolerance (P(loss > $20M) 0.03%). A control that breaks even on average but removes the tail the board said it won't accept is the case for optimizing against tail risk, not the mean.
+- **A ransomware P95 of $0 is not a bug:** with about 0.03 events a year, fewer than 5% of simulated years have one.
+- **About half of the calibrated expected loss sits in the two uncalibrated rows**, so the calibrated total is only as good as those illustrative values.
 
 ### Validating the MCMC sampler
 
@@ -254,7 +277,7 @@ To model your own organization, edit `scenarios.csv`, `controls.csv` and `tolera
 
 ### Output
 
-About 20 seconds. Edits to the assumption files are validated first: a typo such as `lef_mode` outside `lef_min`–`lef_max`, a reduction above 100%, a control pointing at a missing scenario or a repeated control name stops the run with a message that names the row. The report goes to `docs/results.md`, the board brief to `docs/board-brief.md` and the figures to `docs/figures/`; intermediate tables go to `outputs/` (git-ignored).
+About 25 seconds. Edits to the assumption files are validated first: a typo such as `lef_mode` outside `lef_min`–`lef_max`, a reduction above 100%, a control pointing at a missing scenario or a repeated control name stops the run with a message that names the row. The report goes to `docs/results.md`, the board brief to `docs/board-brief.md` and the figures to `docs/figures/`; intermediate tables go to `outputs/` (git-ignored).
 
 `outputs/annual_loss_by_year.csv.gz` holds the loss for every simulated year and scenario, for downstream use such as optimizing a control budget against the tail rather than the mean. The same file is attached to the [v1.0 release](https://github.com/casildata/cyber-risk-monte-carlo/releases/tag/v1.0).
 
@@ -278,14 +301,16 @@ cyber-risk-monte-carlo/
 │   ├── mcmc.R                   # Metropolis-Hastings samplers
 │   ├── report.R                 # markdown report + figure helpers
 │   └── validate.R               # checks on the assumption files
-├── scripts/01_…06_*.R
+├── scripts/01_…07_*.R
 ├── tests/testthat/              # unit tests
 ├── data/
-│   ├── assumptions/             # scenarios.csv, controls.csv, tolerance.csv (edit these)
+│   ├── assumptions/             # scenarios.csv, controls.csv, tolerance.csv (edit these),
+│   │                            # scenarios_calibrated.csv (sourced inputs)
 │   └── README.md
 ├── docs/
 │   ├── results.md               # generated
 │   ├── board-brief.md           # generated
+│   ├── calibration.md           # sources and arithmetic for the calibrated inputs
 │   └── figures/                 # generated
 └── .github/workflows/           # tests, results check, secret scan
 ```
@@ -296,7 +321,7 @@ cyber-risk-monte-carlo/
 
 ## Roadmap
 
-- Replace the illustrative inputs with estimates calibrated against public sources (e.g., industry breach-cost and incident-frequency reports) and cite them.
+- Calibrate DDoS and insider misuse, and the control costs and effectiveness, against public sources as well.
 - Optimize the control budget against the tail (e.g. CVaR) using the year-by-year losses in the v1.0 release.
 - Split loss event frequency into threat event frequency × vulnerability, and loss into primary and secondary, so controls read in FAIR-CAM terms.
 - Shiny front end so a non-technical user can edit assumptions and see the curve update.
@@ -306,6 +331,14 @@ cyber-risk-monte-carlo/
 - Freund, J. & Jones, J. (2014). *Measuring and Managing Information Risk: A FAIR Approach.* Butterworth-Heinemann.
 - Hubbard, D. & Seiersen, R. (2016). *How to Measure Anything in Cybersecurity Risk.* Wiley.
 - NIST IR 8286A (2021). *Identifying and Estimating Cybersecurity Risk for Enterprise Risk Management.*
+
+Calibrated inputs (details and links in [`docs/calibration.md`](docs/calibration.md)):
+
+- Cyentia Institute (2025). *Information Risk Insights Study (IRIS) 2025: It's About Time.*
+- Coalition (2025). *2025 Cyber Claims Report*, and the *2026 Cyber Claims Report* announcement.
+- FBI Internet Crime Complaint Center (2026). *2025 IC3 Annual Report.*
+- Association for Financial Professionals (2025). *2025 Payments Fraud and Control Survey.*
+- Sophos (2026). *The State of Ransomware*; IBM (2025). *Cost of a Data Breach Report* (cross-checks only).
 
 ## Author
 

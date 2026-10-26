@@ -16,6 +16,7 @@ benchmarks; replace them with your own calibrated estimates.
 | | `sev_red_*` | Share of the remaining loss it removes (triangular) |
 | | `annual_cost` | Fully loaded yearly cost of the control |
 | | (several rows per scenario) | Allowed. Combined, a second control acts on what the first leaves: losses are multiplied by (1 − r<sub>1</sub>)(1 − r<sub>2</sub>), not reduced twice |
+| `scenarios_calibrated.csv` | same columns as `scenarios.csv`, plus `confidence` and `source` | The scenarios re-sized from public sources for a mid-size US critical-infrastructure operator; see [`docs/calibration.md`](../docs/calibration.md). Used only by script 06 |
 | `tolerance.csv` | `loss`, `max_probability` | The risk appetite as points on a curve: the most acceptable chance that annual loss exceeds `loss`. Loss rises and probability falls down the rows |
 
 All three files are checked before the simulation runs (`R/validate.R`); a bad row stops the run with a message naming it.

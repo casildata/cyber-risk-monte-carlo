@@ -12,6 +12,7 @@ for a hypothetical mid-size company; see the assumptions at the end.*
 - The other controls also pay off on average, but the chance that each costs more than it saves is about 14%, because we don't know how often those incidents happen.
 - Together they cost $330k a year and cut expected loss by $628k a year.
 - **Waiting for better estimates is not worth it:** perfect information about any control would be worth at most $4.0k a year, a small fraction of its cost.
+- **With frequencies and losses sized from public sources** (three of the five scenarios; [results, section 6](results.md#6-calibrated-inputs)), expected loss falls to $503k a year, but very bad years become more likely: the chance of losing more than $20M in a year is 0.21% against 0.1% tolerated, and the proposed controls bring it back within tolerance. Expected returns under those inputs: EDR + immutable backups -1%, Phishing-resistant MFA + payment call-back -73%, DLP + database encryption -73%.
 
 ![Loss exceedance vs. tolerance](figures/loss_exceedance_tolerance.png)
 
@@ -37,7 +38,7 @@ The range reflects what we don't know: how often each incident happens and how w
 
 ## Assumptions and limits
 
-> - Frequencies and loss ranges are **illustrative expert estimates**, not benchmarks.
+> - Frequencies and loss ranges are **illustrative expert estimates**, not benchmarks. Section 6 of the results reruns the model with estimates sized from public sources for three of the five scenarios; control costs and the tolerance stay illustrative.
 > - Scenarios are simulated as independent. If 30% of ransomware attacks also leaked customer data, the 1-in-100-year loss would rise from $7.58M to $7.79M.
 > - The range for each control treats the size of a loss as known. With loss sizes uncertain too (each 90% interval 1.5 times wider), the chance each control loses money becomes 3.3%–19%.
 > - Figures carry Monte Carlo error: the expected loss is ± $11k and the 1-in-100-year loss ± $160k.

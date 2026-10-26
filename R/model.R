@@ -79,14 +79,14 @@ simulate_events <- function(scenarios, n_years, lef_dist = "triangular", loss_ca
       draw_lef(n_years, s, lef_dist_of(s, lef_dist))
     }
     counts <- rpois(n_years, lambda)
-    data.frame(scenario = s$scenario,
+    data.frame(scenario = rep(s$scenario, sum(counts)),
                year = rep(seq_len(n_years), counts),
                loss = draw_losses(sum(counts), s, loss_cap))
   }))
   if (p_ext > 0) {
     from_years <- events$year[events$scenario == ext[1]]
     leak <- from_years[runif(length(from_years)) < p_ext]
-    events <- rbind(events, data.frame(scenario = ext[2], year = leak,
+    events <- rbind(events, data.frame(scenario = rep(ext[2], length(leak)), year = leak,
                                        loss = draw_losses(length(leak), scenarios[to, ], loss_cap)))
   }
   attr(events, "n_years") <- n_years

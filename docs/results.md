@@ -156,3 +156,41 @@ Between the stated points the tolerance is interpolated on log-log scales. On th
 
 ![Loss exceedance vs. tolerance](figures/loss_exceedance_tolerance.png)
 
+## 6. Calibrated inputs
+
+The same model, controls and tolerance with `scenarios_calibrated.csv`: frequencies and loss ranges sized for a mid-size US critical-infrastructure operator (about $500M revenue) from public sources, with the derivation in [calibration.md](calibration.md). Three scenarios are calibrated; DDoS outage and insider misuse keep their illustrative values because no usable public figures exist at this size. 20,000 simulated years, same seed as section 2.
+
+| Scenario | Confidence | ALE, illustrative | ALE, calibrated | P95, illustrative | P95, calibrated |
+|---|---|---|---|---|---|
+| Ransomware | medium | $338k | $175k | $2.15M | $0 |
+| Business email compromise | low | $239k | $24.4k | $827k | $139k |
+| Customer data breach | low | $381k | $56.2k | $2.00M | $0 |
+| DDoS outage | not calibrated | $132k | $132k | $401k | $402k |
+| Insider misuse | not calibrated | $114k | $114k | $592k | $579k |
+| Total |  | $1.20M | $503k | $4.03M | $1.42M |
+
+| Inputs | Total ALE | P95 (1-in-20) | P99 (1-in-100) | P(> $5M) |
+|---|---|---|---|---|
+| Illustrative | $1.20M | $4.03M | $7.58M | 3.0% |
+| Calibrated | $503k | $1.42M | $6.11M | 1.3% |
+
+![Illustrative vs. calibrated](figures/loss_exceedance_calibrated.png)
+
+**Risk tolerance with calibrated inputs.** ± is one binomial standard error in percentage points; an exceedance within about one standard error of the tolerance is not a clear breach.
+
+| Annual loss over | Tolerated | Illustrative | Calibrated | Calibrated, with the proposed controls |
+|---|---|---|---|---|
+| $1.0M | 50.0% | 36.88% ± 0.34 within | 7.65% ± 0.19 within | 4.93% ± 0.15 within |
+| $2.5M | 10.0% | 12.22% ± 0.23 **exceeds** | 2.80% ± 0.12 within | 1.14% ± 0.08 within |
+| $5.0M | 2.0% | 3.04% ± 0.12 **exceeds** | 1.30% ± 0.08 within | 0.32% ± 0.04 within |
+| $10M | 0.5% | 0.41% ± 0.05 within | 0.54% ± 0.05 **exceeds** | 0.10% ± 0.02 within |
+| $20M | 0.1% | 0.03% ± 0.01 within | 0.21% ± 0.03 **exceeds** | 0.03% ± 0.01 within |
+
+**Controls with calibrated inputs.** Same costs and effectiveness ranges as section 3 (those are still illustrative). Loss avoided is the closed-form expectation; P(ROSI < 0) and EVPI come from 10,000 two-level draws.
+
+| Control | Annual cost | Loss avoided / yr | Expected ROSI | P(ROSI < 0) | EVPI / yr |
+|---|---|---|---|---|---|
+| EDR + immutable backups | $150,000 | $149k | -1% | 56.0% | $33k |
+| Phishing-resistant MFA + payment call-back | $60,000 | $16.1k | -73% | 100.0% | $0 |
+| DLP + database encryption | $120,000 | $32.6k | -73% | 100.0% | $0 |
+

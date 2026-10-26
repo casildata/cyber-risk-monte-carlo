@@ -19,7 +19,8 @@ pipeline <- c(
   "scripts/03_control_roi.R",
   "scripts/04_bayesian_frequency.R",
   "scripts/05_risk_tolerance.R",
-  "scripts/06_board_brief.R"
+  "scripts/06_calibrated_inputs.R",
+  "scripts/07_board_brief.R"
 )
 for (s in pipeline) {
   message("==> ", s)

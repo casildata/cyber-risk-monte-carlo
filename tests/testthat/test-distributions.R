@@ -20,4 +20,5 @@ test_that("rpert respects its bounds and has mean (a + 4c + b) / 6", {
 test_that("dollars_sig rounds to significant figures with a unit", {
   expect_equal(dollars_sig(c(1204196, 337719, 90482, 950)), c("$1.20M", "$338k", "$90.5k", "$950"))
   expect_equal(dollars_sig(11400, 2), "$11k")
+  expect_equal(dollars_sig(0), "$0")
 })

@@ -5,6 +5,7 @@ tol <- read_input("tolerance.csv")
 
 test_that("the committed assumption files are valid", {
   expect_true(validate_inputs(scen, ctl, tol))
+  expect_true(validate_inputs(read_input("scenarios_calibrated.csv"), ctl, tol))
 })
 
 test_that("a misspelled scenario in controls.csv is an error, not ROSI = -100%", {

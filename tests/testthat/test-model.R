@@ -112,3 +112,11 @@ test_that("lambda_draws replaces the estimate with resampled rates", {
   ev <- simulate_events(one_scenario, 50000, lambda_draws = list(Ransomware = 2))
   expect_equal(nrow(ev) / 50000, 2, tolerance = 0.02)
 })
+
+test_that("a scenario with no events in any year is kept as zero losses", {
+  rare <- transform(one_scenario, lef_min = 0, lef_mode = 0, lef_max = 1e-9)
+  set.seed(8)
+  ev <- simulate_events(rare, 10, p_ext = 0)
+  expect_equal(nrow(ev), 0)
+  expect_equal(annual_losses(ev, rare)[, 1], rep(0, 10))
+})

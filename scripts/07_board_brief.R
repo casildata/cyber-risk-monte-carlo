@@ -10,6 +10,9 @@ overlap     <- readRDS("outputs/tolerance_overlap.rds")
 combined    <- readRDS("outputs/combined_avoided_by_year.rds")
 sens        <- read.csv("outputs/sensitivity.csv")
 sev         <- read.csv("outputs/control_rosi_severity.csv")
+cal_tot     <- read.csv("outputs/calibrated_totals.csv")
+cal_tol     <- read.csv("outputs/calibrated_tolerance.csv")
+cal_ctl     <- read.csv("outputs/calibrated_controls.csv")
 
 total <- summary_tbl[summary_tbl$scenario == "Total", ]
 total_se <- se_tbl[se_tbl$scenario == "Total", ]
@@ -91,6 +94,20 @@ brief <- c(
     paste0("- **Waiting for better estimates is not worth it:** perfect information about ",
            "any control would be worth at most ", dollars_sig(max(ctl$evpi), 2),
            " a year, a small fraction of its cost."),
+  paste0("- **With frequencies and losses sized from public sources** (three of the five ",
+         "scenarios; [results, section 6](results.md#6-calibrated-inputs)), expected loss falls to ",
+         dollars_sig(cal_tot$ale[cal_tot$run == "Calibrated"]), " a year",
+         if (any(cal_tol$p_calibrated > cal_tol$max_probability)) {
+           # the clearest breach: largest ratio to the tolerated probability
+           b <- cal_tol[which.max(cal_tol$p_calibrated / cal_tol$max_probability), ]
+           paste0(", but very bad years become more likely: the chance of losing more than ",
+                  dollars_sig(b$loss, 2), " in a year is ", pct(b$p_calibrated, 2),
+                  " against ", pct(b$max_probability, 1), " tolerated",
+                  if (all(cal_tol$p_calibrated_controls <= cal_tol$max_probability))
+                    ", and the proposed controls bring it back within tolerance" else "")
+         } else "",
+         ". Expected returns under those inputs: ",
+         paste0(cal_ctl$control, " ", signed(cal_ctl$rosi), collapse = ", "), "."),
   "",
   "![Loss exceedance vs. tolerance](figures/loss_exceedance_tolerance.png)",
   "",
@@ -110,7 +127,9 @@ brief <- c(
   "",
   "## Assumptions and limits",
   "",
-  "> - Frequencies and loss ranges are **illustrative expert estimates**, not benchmarks.",
+  paste0("> - Frequencies and loss ranges are **illustrative expert estimates**, not benchmarks. ",
+         "Section 6 of the results reruns the model with estimates sized from public sources ",
+         "for three of the five scenarios; control costs and the tolerance stay illustrative."),
   if (any(sens$p_ext > 0))
     paste0("> - Scenarios are simulated as independent. If ", pct(sens$p_ext[sens$p_ext > 0]),
            " of ransomware attacks also leaked customer data, the 1-in-100-year loss would ",
