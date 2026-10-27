@@ -21,6 +21,12 @@ total  <- rowSums(annual)
 illus_annual <- annual_losses(readRDS("outputs/events.rds"), illus)
 illus_total  <- rowSums(illus_annual)
 
+# Year-by-scenario losses in the same format as script 02's export, for tail-risk
+# budget optimization (release v1.1)
+write.csv(data.frame(year = seq_len(N_YEARS), round(annual), Total = round(total),
+                     check.names = FALSE),
+          gzfile("outputs/annual_loss_calibrated_by_year.csv.gz"), row.names = FALSE)
+
 # ---- Per scenario: illustrative vs. calibrated -------------------------------------
 by_scenario <- data.frame(
   scenario = c(calibrated$scenario, "Total"),

@@ -279,7 +279,7 @@ To model your own organization, edit `scenarios.csv`, `controls.csv` and `tolera
 
 About 25 seconds. Edits to the assumption files are validated first: a typo such as `lef_mode` outside `lef_min`–`lef_max`, a reduction above 100%, a control pointing at a missing scenario or a repeated control name stops the run with a message that names the row. The report goes to `docs/results.md`, the board brief to `docs/board-brief.md` and the figures to `docs/figures/`; intermediate tables go to `outputs/` (git-ignored).
 
-`outputs/annual_loss_by_year.csv.gz` holds the loss for every simulated year and scenario, for downstream use such as optimizing a control budget against the tail rather than the mean. The same file is attached to the [v1.0 release](https://github.com/casildata/cyber-risk-monte-carlo/releases/tag/v1.0).
+`outputs/annual_loss_by_year.csv.gz` holds the loss for every simulated year and scenario, for downstream use such as optimizing a control budget against the tail rather than the mean. The same file is attached to the [v1.0 release](https://github.com/casildata/cyber-risk-monte-carlo/releases/tag/v1.0). `outputs/annual_loss_calibrated_by_year.csv.gz` is the same table for the calibrated inputs, attached to the [v1.1 release](https://github.com/casildata/cyber-risk-monte-carlo/releases/tag/v1.1).
 
 **Related:** [security-budget-optimizer](https://github.com/casildata/security-budget-optimizer) takes the scenario ALEs from this release and picks the control portfolio that removes the most expected loss under a budget, compliance mandates and analyst capacity.
 
@@ -322,7 +322,7 @@ cyber-risk-monte-carlo/
 ## Roadmap
 
 - Calibrate DDoS and insider misuse, and the control costs and effectiveness, against public sources as well.
-- Optimize the control budget against the tail (e.g. CVaR) using the year-by-year losses in the v1.0 release.
+- Optimize the control budget against the tail (e.g. CVaR) using the year-by-year losses in the v1.0 and v1.1 releases.
 - Split loss event frequency into threat event frequency × vulnerability, and loss into primary and secondary, so controls read in FAIR-CAM terms.
 - Shiny front end so a non-technical user can edit assumptions and see the curve update.
 
